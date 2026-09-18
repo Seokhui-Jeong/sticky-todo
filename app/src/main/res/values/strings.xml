@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">할 일</string>
+    <string name="widget_name">할 일 메모</string>
+    <string name="widget_desc">바탕화면에 붙이는 할 일 메모. 위젯에서 바로 체크하고 추가할 수 있습니다.</string>
+    <string name="archive">보관함</string>
+    <string name="add_task">할 일 추가</string>
+    <string name="add_bar">＋  할 일 추가</string>
+    <string name="empty">할 일이 없습니다</string>
+    <string name="hint_task">할 일을 입력하세요</string>
+    <string name="hint_date">9/18, 내일, +7</string>
+    <string name="save">저장</string>
+    <string name="cancel">취소</string>
+    <string name="delete">삭제</string>
+    <string name="restore">복원</string>
+    <string name="clear_all">전체 비우기</string>
+    <string name="archive_done">완료 항목 모두 보관</string>
+    <string name="empty_archive">보관된 할 일이 없습니다</string>
+    <string name="date_help">비워두면 기한 없음. 9/18 · 9-18 · 9월18일 · 26.9.18 · 오늘 · 내일 · +7</string>
+</resources>

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 앱 화면 (라이트) -->
+    <color name="bg">#FFFFFFFF</color>
+    <color name="surface">#FFFFFFFF</color>
+    <color name="head">#FFFAFAFB</color>
+    <color name="text">#FF22252A</color>
+    <color name="muted">#FF9AA0A6</color>
+    <color name="done_text">#FFB9BEC4</color>
+    <color name="divider">#FFEFF1F4</color>
+    <color name="border">#FFE3E5E8</color>
+
+    <!-- 공통 강조색 (라이트/다크 모두에서 읽힘) -->
+    <color name="accent">#FF3B7DEA</color>
+    <color name="overdue">#FFE0463E</color>
+
+    <!-- 위젯 (라이트) -->
+    <color name="widget_bg">#F2FFFFFF</color>
+    <color name="widget_text">#FF22252A</color>
+    <color name="widget_muted">#FF8B9198</color>
+    <color name="widget_divider">#22000000</color>
+    <color name="check_border">#FFB4BAC1</color>
+
+    <color name="ic_launcher_background">#FFFFFFFF</color>
+</resources>

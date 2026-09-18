@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bg">#FF15171A</color>
+    <color name="surface">#FF1C1F23</color>
+    <color name="head">#FF1F2226</color>
+    <color name="text">#FFE9EBEE</color>
+    <color name="muted">#FF8B9198</color>
+    <color name="done_text">#FF6B7178</color>
+    <color name="divider">#FF2A2E33</color>
+    <color name="border">#FF33383E</color>
+
+    <color name="accent">#FF6AA3FF</color>
+    <color name="overdue">#FFFF6B61</color>
+
+    <color name="widget_bg">#E61A1D21</color>
+    <color name="widget_text">#FFE9EBEE</color>
+    <color name="widget_muted">#FF979DA4</color>
+    <color name="widget_divider">#33FFFFFF</color>
+    <color name="check_border">#FF6E757C</color>
+
+    <color name="ic_launcher_background">#FF1C1F23</color>
+</resources>
