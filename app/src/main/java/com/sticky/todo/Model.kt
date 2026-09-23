@@ -27,8 +27,9 @@ data class Task(
         put("date", date)
         put("done", done)
         put("seq", seq)
-        put("doneAt", doneAt ?: JSONObject.NULL)
-        put("archivedAt", archivedAt ?: JSONObject.NULL)
+        // JSONObject.NULL 로 넣으면 다시 읽을 때 "null" 이라는 글자가 되어버린다
+        put("doneAt", doneAt ?: "")
+        put("archivedAt", archivedAt ?: "")
     }
 
     companion object {
@@ -137,7 +138,7 @@ object Rules {
 
     /** 미완료 먼저 → 기한 빠른 순 → 기한 없는 것 → 완료한 것은 맨 아래 */
     fun sorted(items: List<Task>): List<Task> = items.sortedWith(
-        compareBy(
+        compareBy<Task>(
             { if (it.done) 1 else 0 },
             { if (it.localDate() == null) 1 else 0 },
             { it.localDate()?.toEpochDay() ?: 0L },

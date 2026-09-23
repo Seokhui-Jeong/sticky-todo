@@ -39,7 +39,7 @@ PC판 바탕화면 메모와 같은 규칙으로 동작하는 안드로이드 �
 2. 이 폴더의 파일 전부를 그 저장소에 올립니다
    (웹에서 **uploading an existing file** → 폴더째 끌어다 놓기 → Commit)
 3. 저장소 상단 **Actions** 탭 → `Build APK` → 초록색 체크가 뜰 때까지 3~5분 기다립니다
-4. 그 실행 화면 맨 아래 **Artifacts → 할일메모-apk** 를 눌러 zip을 내려받고, 압축을 풀면
+4. 그 실행 화면 맨 아래 **Artifacts → todo-widget-apk** 를 눌러 zip을 내려받고, 압축을 풀면
    `app-debug.apk` 가 나옵니다
 5. 이 파일을 폰으로 옮겨 실행 → "출처를 알 수 없는 앱" 허용 → 설치
 
@@ -82,3 +82,19 @@ const val ARCHIVE_UNDONE_OVERDUE = false  // true 로 바꾸면 미완료도 기
 
 폰 내부 저장소에만 보관되며 서버로 나가지 않습니다.
 앱을 지우면 같이 지워집니다.
+
+---
+
+## 빌드가 실패하면
+
+Actions 화면에서 빨간 X 가 난 단계를 펼치면 원인이 나옵니다.
+실패했을 때는 `build-logs` 라는 Artifact 도 같이 올라오니 받아서 보내주세요.
+
+자주 나오는 것:
+
+| 메시지 | 원인 / 해결 |
+|---|---|
+| `Task 'assembleDebug' not found in root project` | 파일을 폴더째 올려서 `settings.gradle.kts` 가 저장소 맨 위에 없는 경우. 저장소 첫 화면에 `app`, `settings.gradle.kts`, `build.gradle.kts` 가 바로 보여야 합니다 |
+| `No such file or directory: ./gradlew` | 워크플로가 `gradle` 대신 `./gradlew` 를 부르고 있는 경우. 이 저장소의 `build-apk.yml` 을 그대로 쓰면 됩니다 |
+| `Failed to find package 'tools'` | `android-actions/setup-android` 를 쓸 때 나는 오류. 지금 워크플로에서는 그 액션을 뺐습니다 |
+| `SDK location not found` | `local.properties` 를 실수로 올린 경우. 저장소에서 지우세요 |

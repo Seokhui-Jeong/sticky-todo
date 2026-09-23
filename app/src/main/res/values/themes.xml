@@ -13,4 +13,16 @@
         <item name="android:windowMinWidthMajor">88%</item>
         <item name="android:windowMinWidthMinor">92%</item>
     </style>
+
+    <!-- 위젯 체크 토글용: 화면에 아무것도 그리지 않는 투명 테마.
+         AppCompatActivity 는 반드시 AppCompat 계열 테마여야 하므로
+         android 기본 Translucent 테마를 쓰면 실행 중 죽는다. -->
+    <style name="InvisibleTheme" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:backgroundDimEnabled">false</item>
+    </style>
 </resources>

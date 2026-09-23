@@ -38,8 +38,8 @@ class TaskEditActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         val mode = intent?.getStringExtra(EXTRA_MODE) ?: MODE_ADD
         if (mode == MODE_TOGGLE) {
-            // 창을 전혀 띄우지 않는다
-            setTheme(android.R.style.Theme_Translucent_NoTitleBar)
+            // 창을 전혀 띄우지 않는다 (AppCompat 계열이어야 한다)
+            setTheme(R.style.InvisibleTheme)
         }
         super.onCreate(savedInstanceState)
 
