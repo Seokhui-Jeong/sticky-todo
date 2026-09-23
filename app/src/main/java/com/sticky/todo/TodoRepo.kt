@@ -117,12 +117,19 @@ object TodoRepo {
     // ── 변경 ──────────────────────────────────────────────
 
     @Synchronized
-    fun add(ctx: Context, text: String, dateRaw: String, repeatDays: Int = 0): Task {
+    fun add(
+        ctx: Context,
+        text: String,
+        dateRaw: String,
+        repeatDays: Int = 0,
+        star: Boolean = false
+    ): Task {
         ensure(ctx)
         seq += 1
         val t = Task(
             text = text.trim(),
             date = Dates.normalize(dateRaw),
+            star = star,
             repeatDays = repeatDays.coerceAtLeast(0),
             seq = seq
         )
@@ -132,12 +139,21 @@ object TodoRepo {
     }
 
     @Synchronized
-    fun update(ctx: Context, id: String, text: String, dateRaw: String, repeatDays: Int = 0) {
+    /** star 가 null 이면 즐겨찾기 상태는 건드리지 않는다 */
+    fun update(
+        ctx: Context,
+        id: String,
+        text: String,
+        dateRaw: String,
+        repeatDays: Int = 0,
+        star: Boolean? = null
+    ) {
         ensure(ctx)
         items.firstOrNull { it.id == id }?.let {
             it.text = text.trim()
             it.date = Dates.normalize(dateRaw)
             it.repeatDays = repeatDays.coerceAtLeast(0)
+            if (star != null) it.star = star
         }
         persist(ctx)
     }

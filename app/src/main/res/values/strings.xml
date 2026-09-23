@@ -25,4 +25,6 @@
     <string name="empty_tap_add">눌러서 할 일 추가</string>
     <string name="spacing_title">위젯 줄 간격</string>
     <string name="star">즐겨찾기</string>
+    <string name="star_hint_off">즐겨찾기 꺼짐</string>
+    <string name="star_hint_on">즐겨찾기 — 맨 위에 표시</string>
 </resources>

@@ -50,6 +50,35 @@
         android:textSize="16sp"
         android:importantForAutofill="no" />
 
+    <LinearLayout
+        android:id="@+id/star_row"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@drawable/ripple_rect"
+        android:clickable="true"
+        android:focusable="true"
+        android:padding="8dp">
+
+        <ImageView
+            android:id="@+id/edit_star"
+            android:layout_width="26dp"
+            android:layout_height="26dp"
+            android:src="@drawable/ic_star_off"
+            android:contentDescription="@string/star" />
+
+        <TextView
+            android:id="@+id/edit_star_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="@string/star_hint_off"
+            android:textColor="@color/muted"
+            android:textSize="15sp" />
+    </LinearLayout>
+
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

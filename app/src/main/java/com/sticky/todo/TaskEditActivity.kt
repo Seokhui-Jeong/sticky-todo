@@ -3,10 +3,13 @@ package com.sticky.todo
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.view.View
 import android.view.WindowManager
 import android.widget.EditText
+import android.widget.ImageView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 
 /**
  * 위젯과 앱이 함께 쓰는 작은 편집 창.
@@ -34,7 +37,10 @@ class TaskEditActivity : AppCompatActivity() {
     private lateinit var textField: EditText
     private lateinit var dateField: EditText
     private lateinit var repeatField: EditText
+    private lateinit var starIcon: ImageView
+    private lateinit var starLabel: TextView
     private var taskId: String? = null
+    private var starOn = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val mode = intent?.getStringExtra(EXTRA_MODE) ?: MODE_ADD
@@ -62,6 +68,13 @@ class TaskEditActivity : AppCompatActivity() {
         textField = findViewById(R.id.edit_text)
         dateField = findViewById(R.id.edit_date)
         repeatField = findViewById(R.id.edit_repeat)
+        starIcon = findViewById(R.id.edit_star)
+        starLabel = findViewById(R.id.edit_star_label)
+        findViewById<View>(R.id.star_row).setOnClickListener {
+            starOn = !starOn
+            paintStar()
+        }
+        paintStar()
         val deleteBtn = findViewById<TextView>(R.id.btn_delete)
         val cancelBtn = findViewById<TextView>(R.id.btn_cancel)
         val saveBtn = findViewById<TextView>(R.id.btn_save)
@@ -76,6 +89,8 @@ class TaskEditActivity : AppCompatActivity() {
             textField.setText(t.text)
             dateField.setText(Dates.format(t.localDate()).ifEmpty { t.date })
             if (t.repeatDays > 0) repeatField.setText(t.repeatDays.toString())
+            starOn = t.star
+            paintStar()
             textField.setSelection(textField.text.length)
             deleteBtn.visibility = TextView.VISIBLE
             deleteBtn.setOnClickListener {
@@ -105,12 +120,26 @@ class TaskEditActivity : AppCompatActivity() {
         }
         val id = taskId
         if (id == null) {
-            TodoRepo.add(this, text, date, repeat)
+            TodoRepo.add(this, text, date, repeat, starOn)
         } else {
-            TodoRepo.update(this, id, text, date, repeat)
+            TodoRepo.update(this, id, text, date, repeat, starOn)
         }
         TodoRepo.runAutoArchive(this)
         done()
+    }
+
+    /** 즐겨찾기 줄의 별과 글자를 현재 상태에 맞게 그린다 */
+    private fun paintStar() {
+        starIcon.setImageResource(
+            if (starOn) R.drawable.ic_star_on else R.drawable.ic_star_off
+        )
+        starIcon.alpha = if (starOn) 1f else 0.45f
+        starLabel.setText(
+            if (starOn) R.string.star_hint_on else R.string.star_hint_off
+        )
+        starLabel.setTextColor(
+            ContextCompat.getColor(this, if (starOn) R.color.text else R.color.muted)
+        )
     }
 
     private fun done() {
