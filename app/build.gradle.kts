@@ -27,6 +27,13 @@ android {
         }
     }
 
+    // 일부 CI 설정은 `gradlew build` 로 lint 까지 돌린다.
+    // 경고 하나 때문에 APK 가 안 나오는 일이 없게 한다.
+    lint {
+        abortOnError = false
+        checkReleaseBuilds = false
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

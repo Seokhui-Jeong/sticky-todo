@@ -53,9 +53,10 @@ PC판 바탕화면 메모와 같은 규칙으로 동작하는 안드로이드 �
 2. Gradle 동기화가 끝나면 **Build → Build Bundle(s)/APK(s) → Build APK(s)**
 3. `app/build/outputs/apk/debug/app-debug.apk` 생성
 
-> Gradle wrapper 파일(`gradlew`, `gradle-wrapper.jar`)은 들어있지 않습니다.
-> Android Studio가 열 때 알아서 만들어 주며, 혹시 물어보면
-> **Use Gradle from: 'gradle-wrapper.properties'** 를 고르면 됩니다.
+> `gradlew` 는 들어있지만 보통의 것과 다릅니다. 래퍼 바이너리(`gradle-wrapper.jar`)를
+> 함께 넣을 수 없어서, 같은 일을 하는 셸 스크립트로 대신했습니다.
+> gradle 이 깔려 있으면 그걸 쓰고, 없으면 Gradle 배포판을 받아 씁니다.
+> Android Studio 가 진짜 래퍼를 새로 만들겠다고 물어보면 그렇게 해도 됩니다.
 
 ---
 
