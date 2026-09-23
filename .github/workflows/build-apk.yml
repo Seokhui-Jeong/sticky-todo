@@ -9,6 +9,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    # Releases 에 APK 를 올리려면 쓰기 권한이 필요하다
+    permissions:
+      contents: write
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -27,29 +31,40 @@ jobs:
           java -version
           echo "--- repo root ---"
           ls -1
-          echo "--- workflows ---"
-          ls -1 .github/workflows
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: '8.7'
 
-      # 이 저장소에는 gradlew(래퍼)가 없다. 래퍼 jar 는 바이너리라 함께 넣을 수 없다.
-      # setup-gradle 이 깔아준 gradle 명령을 그대로 쓰면 래퍼가 필요 없다.
-      # 혹시 나중에 래퍼를 커밋하더라도 그대로 동작하도록 양쪽을 모두 처리한다.
+      # 이 저장소의 gradlew 는 래퍼 jar 없이 도는 셸 스크립트다.
+      # gradle 이 이미 깔려 있으면 그쪽으로 넘어간다.
       - name: Build debug APK
         run: |
           if [ -f ./gradlew ]; then
-            echo "gradlew 발견 → 래퍼로 빌드"
             chmod +x ./gradlew
             ./gradlew assembleDebug --no-daemon --stacktrace
           else
-            echo "gradlew 없음 → setup-gradle 의 gradle 로 빌드"
             gradle assembleDebug --no-daemon --stacktrace
           fi
 
-      - name: Upload APK
+      # 폰에서 바로 받을 수 있게 Releases 에 올린다.
+      # 항상 같은 이름(todo-widget.apk)으로 올리므로 아래 주소가 늘 최신 APK 를 가리킨다.
+      #   https://github.com/<계정>/<저장소>/releases/latest/download/todo-widget.apk
+      - name: Publish APK to Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk todo-widget.apk
+          TAG="build-${{ github.run_number }}"
+          NOW=$(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M')
+          gh release create "$TAG" todo-widget.apk \
+            --title "할 일 위젯 ($NOW)" \
+            --notes "빌드 #${{ github.run_number }} · 아래 todo-widget.apk 를 눌러 바로 설치하세요." \
+            --latest
+
+      # 압축된 형태로도 남겨둔다 (PC 에서 받을 때용)
+      - name: Upload APK as artifact
         uses: actions/upload-artifact@v4
         with:
           name: todo-widget-apk

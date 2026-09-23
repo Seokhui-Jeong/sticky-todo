@@ -42,7 +42,10 @@
             android:contentDescription="@string/add_task" />
     </LinearLayout>
 
-    <View
+    <!-- 구분선. 위젯에서는 <View> 를 쓸 수 없어 FrameLayout 으로 그린다.
+         RemoteViews 가 허용하지 않는 뷰가 하나라도 있으면
+         위젯 전체가 "위젯을 생성할 수 없습니다" 로 뜬다. -->
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="1dp"
         android:background="@color/widget_divider" />
