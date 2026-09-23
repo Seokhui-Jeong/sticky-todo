@@ -2,9 +2,11 @@ package com.sticky.todo
 
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.text.Spannable
 import android.text.SpannableString
 import android.text.style.StrikethroughSpan
+import android.util.TypedValue
 import android.widget.RemoteViews
 import android.widget.RemoteViewsService
 import androidx.core.content.ContextCompat
@@ -18,6 +20,8 @@ class WidgetService : RemoteViewsService() {
 private class TodoFactory(private val ctx: Context) : RemoteViewsService.RemoteViewsFactory {
 
     private var items: List<Task> = emptyList()
+    private var padDp: Int = TodoRepo.SPACING_PAD[TodoRepo.SPACING_DEFAULT]
+    private var checkDp: Int = TodoRepo.SPACING_CHECK[TodoRepo.SPACING_DEFAULT]
 
     override fun onCreate() {}
 
@@ -25,6 +29,10 @@ private class TodoFactory(private val ctx: Context) : RemoteViewsService.RemoteV
         // 위젯이 갱신될 때마다 기한 지난 완료 항목을 정리한다
         TodoRepo.runAutoArchive(ctx)
         items = TodoRepo.sortedItems(ctx)
+
+        val level = TodoRepo.widgetSpacing(ctx)
+        padDp = TodoRepo.SPACING_PAD[level]
+        checkDp = TodoRepo.SPACING_CHECK[level]
     }
 
     override fun onDestroy() {
@@ -38,9 +46,27 @@ private class TodoFactory(private val ctx: Context) : RemoteViewsService.RemoteV
         if (position !in items.indices) return rv
         val t = items[position]
 
+        // 줄 간격 설정 반영
+        val padPx = dp(padDp)
+        rv.setViewPadding(R.id.item_root, 0, padPx, 0, padPx)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            rv.setViewLayoutHeight(
+                R.id.item_check, checkDp.toFloat(), TypedValue.COMPLEX_UNIT_DIP
+            )
+            rv.setViewLayoutWidth(
+                R.id.item_check, checkDp.toFloat(), TypedValue.COMPLEX_UNIT_DIP
+            )
+        }
+
         rv.setImageViewResource(
             R.id.item_check,
             if (t.done) R.drawable.ic_check_on else R.drawable.ic_check_off
+        )
+
+        // 즐겨찾기는 미완료인 동안에만 별을 보여준다
+        rv.setViewVisibility(
+            R.id.item_star,
+            if (t.star && !t.done) android.view.View.VISIBLE else android.view.View.GONE
         )
 
         val label = t.text.ifBlank { "(내용 없음)" }
@@ -56,7 +82,7 @@ private class TodoFactory(private val ctx: Context) : RemoteViewsService.RemoteV
         }
 
         val d = t.localDate()
-        rv.setTextViewText(R.id.item_date, if (d != null) Dates.format(d) else t.date)
+        rv.setTextViewText(R.id.item_date, dateLabel(t))
         val dateColor = when {
             t.done -> R.color.widget_muted
             else -> when (Dates.state(d)) {
@@ -85,6 +111,9 @@ private class TodoFactory(private val ctx: Context) : RemoteViewsService.RemoteV
     }
 
     private fun color(res: Int) = ContextCompat.getColor(ctx, res)
+
+    private fun dp(value: Int): Int =
+        (value * ctx.resources.displayMetrics.density).toInt()
 
     override fun getLoadingView(): RemoteViews? = null
     override fun getViewTypeCount(): Int = 1

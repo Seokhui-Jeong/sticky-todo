@@ -57,6 +57,37 @@ object TodoRepo {
         prefs(ctx).edit().putString(KEY, root.toString()).apply()
     }
 
+    // ── 설정 ──────────────────────────────────────────────
+
+    const val TAP_ADD = "add"    // 빈 곳 탭 -> 할 일 추가
+    const val TAP_OPEN = "open"  // 빈 곳 탭 -> 앱 열기
+
+    /** 위젯 빈 곳을 눌렀을 때의 동작 (기본: 할 일 추가) */
+    fun widgetTap(ctx: Context): String =
+        prefs(ctx).getString("widget_tap", TAP_ADD) ?: TAP_ADD
+
+    fun setWidgetTap(ctx: Context, value: String) {
+        prefs(ctx).edit().putString("widget_tap", value).apply()
+    }
+
+    /**
+     * 위젯 줄 간격 단계 (0=아주 좁게 … 4=아주 넓게, 기본 2).
+     * 단계마다 (줄 위아래 여백 dp, 체크박스 크기 dp) 가 정해져 있다.
+     */
+    val SPACING_PAD = intArrayOf(0, 0, 1, 4, 8)
+    val SPACING_CHECK = intArrayOf(22, 26, 26, 26, 26)
+    const val SPACING_DEFAULT = 2
+
+    fun widgetSpacing(ctx: Context): Int =
+        prefs(ctx).getInt("widget_spacing", SPACING_DEFAULT)
+            .coerceIn(0, SPACING_PAD.size - 1)
+
+    fun setWidgetSpacing(ctx: Context, level: Int) {
+        prefs(ctx).edit()
+            .putInt("widget_spacing", level.coerceIn(0, SPACING_PAD.size - 1))
+            .apply()
+    }
+
     // ── 조회 ──────────────────────────────────────────────
 
     @Synchronized
@@ -86,21 +117,27 @@ object TodoRepo {
     // ── 변경 ──────────────────────────────────────────────
 
     @Synchronized
-    fun add(ctx: Context, text: String, dateRaw: String): Task {
+    fun add(ctx: Context, text: String, dateRaw: String, repeatDays: Int = 0): Task {
         ensure(ctx)
         seq += 1
-        val t = Task(text = text.trim(), date = Dates.normalize(dateRaw), seq = seq)
+        val t = Task(
+            text = text.trim(),
+            date = Dates.normalize(dateRaw),
+            repeatDays = repeatDays.coerceAtLeast(0),
+            seq = seq
+        )
         items.add(t)
         persist(ctx)
         return t
     }
 
     @Synchronized
-    fun update(ctx: Context, id: String, text: String, dateRaw: String) {
+    fun update(ctx: Context, id: String, text: String, dateRaw: String, repeatDays: Int = 0) {
         ensure(ctx)
         items.firstOrNull { it.id == id }?.let {
             it.text = text.trim()
             it.date = Dates.normalize(dateRaw)
+            it.repeatDays = repeatDays.coerceAtLeast(0)
         }
         persist(ctx)
     }
@@ -115,6 +152,14 @@ object TodoRepo {
         persist(ctx)
     }
 
+    /** 즐겨찾기 켜고 끄기. 미완료인 동안에는 목록 맨 위로 올라간다. */
+    @Synchronized
+    fun toggleStar(ctx: Context, id: String) {
+        ensure(ctx)
+        items.firstOrNull { it.id == id }?.let { it.star = !it.star }
+        persist(ctx)
+    }
+
     @Synchronized
     fun delete(ctx: Context, id: String) {
         ensure(ctx)
@@ -124,18 +169,29 @@ object TodoRepo {
 
     // ── 보관함 ────────────────────────────────────────────
 
-    /** 기한이 지난 완료 항목을 보관함으로 옮긴다. 옮긴 개수를 돌려준다. */
+    /**
+     * 하루치 정리. 두 가지를 한다.
+     *   1. 주기가 돌아온 반복 항목의 체크를 풀어준다
+     *   2. 기한이 지난 완료 항목을 보관함으로 옮긴다 (반복 항목은 제외)
+     * 보관한 개수를 돌려준다.
+     */
     @Synchronized
     fun runAutoArchive(ctx: Context, today: LocalDate = LocalDate.now()): Int {
         ensure(ctx)
+
+        var changed = false
+        items.forEach { if (Rules.applyRepeat(it, today)) changed = true }
+
         val move = items.filter { Rules.shouldArchive(it, today) }
-        if (move.isEmpty()) return 0
-        move.forEach {
-            it.archivedAt = Task.now()
-            archive.add(0, it)
+        if (move.isNotEmpty()) {
+            move.forEach {
+                it.archivedAt = Task.now()
+                archive.add(0, it)
+            }
+            items.removeAll(move.toSet())
         }
-        items.removeAll(move.toSet())
-        persist(ctx)
+
+        if (changed || move.isNotEmpty()) persist(ctx)
         return move.size
     }
 

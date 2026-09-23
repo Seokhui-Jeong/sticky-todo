@@ -22,4 +22,6 @@
     <color name="check_border">#FFB4BAC1</color>
 
     <color name="ic_launcher_background">#FFFFFFFF</color>
+    <color name="star_on">#FFF0A82E</color>
+    <color name="star_off">#FFC7CBD1</color>
 </resources>

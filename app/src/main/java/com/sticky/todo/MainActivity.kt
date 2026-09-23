@@ -37,7 +37,11 @@ class MainActivity : AppCompatActivity() {
                 reload()
             },
             onClick = { t -> startActivity(TaskEditActivity.edit(this, t.id)) },
-            onLongClick = { t -> confirmDelete(t) }
+            onLongClick = { t -> confirmDelete(t) },
+            onStar = { t ->
+                TodoRepo.toggleStar(this, t.id)
+                reload()
+            }
         )
         list.layoutManager = LinearLayoutManager(this)
         list.adapter = adapter
@@ -78,6 +82,8 @@ class MainActivity : AppCompatActivity() {
         val menu = PopupMenu(this, anchor)
         menu.menu.add(0, 1, 0, getString(R.string.archive))
         menu.menu.add(0, 2, 1, getString(R.string.archive_done))
+        menu.menu.add(0, 3, 2, getString(R.string.widget_tap_title))
+        menu.menu.add(0, 4, 3, getString(R.string.spacing_title))
         menu.setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 1 -> {
@@ -94,17 +100,66 @@ class MainActivity : AppCompatActivity() {
                     ).show()
                     true
                 }
+                3 -> {
+                    chooseWidgetTap()
+                    true
+                }
+                4 -> {
+                    chooseSpacing()
+                    true
+                }
                 else -> false
             }
         }
         menu.show()
+    }
+
+    /** 위젯 빈 곳을 눌렀을 때 무엇을 할지 고른다 */
+    private fun chooseWidgetTap() {
+        val values = arrayOf(TodoRepo.TAP_ADD, TodoRepo.TAP_OPEN)
+        val labels = arrayOf(
+            getString(R.string.widget_tap_add),
+            getString(R.string.widget_tap_open)
+        )
+        val current = values.indexOf(TodoRepo.widgetTap(this)).coerceAtLeast(0)
+        AlertDialog.Builder(this)
+            .setTitle(R.string.widget_tap_title)
+            .setSingleChoiceItems(labels, current) { dialog, which ->
+                TodoRepo.setWidgetTap(this, values[which])
+                TodoWidget.refresh(this)
+                dialog.dismiss()
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
+
+    /** 위젯 줄 간격을 고른다. 고르는 즉시 위젯에 반영된다. */
+    private fun chooseSpacing() {
+        val labels = arrayOf(
+            "아주 좁게",
+            "좁게",
+            "보통 (기본)",
+            "넓게",
+            "아주 넓게"
+        )
+        val current = TodoRepo.widgetSpacing(this)
+        AlertDialog.Builder(this)
+            .setTitle(R.string.spacing_title)
+            .setSingleChoiceItems(labels, current) { dialog, which ->
+                TodoRepo.setWidgetSpacing(this, which)
+                TodoWidget.refresh(this)
+                dialog.dismiss()
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
     }
 }
 
 class TaskAdapter(
     private val onToggle: (Task) -> Unit,
     private val onClick: (Task) -> Unit,
-    private val onLongClick: (Task) -> Unit
+    private val onLongClick: (Task) -> Unit,
+    private val onStar: (Task) -> Unit
 ) : RecyclerView.Adapter<TaskAdapter.VH>() {
 
     private var items: List<Task> = emptyList()
@@ -117,6 +172,7 @@ class TaskAdapter(
     class VH(v: View) : RecyclerView.ViewHolder(v) {
         val check: ImageView = v.findViewById(R.id.check)
         val text: TextView = v.findViewById(R.id.text)
+        val star: ImageView = v.findViewById(R.id.star)
         val date: TextView = v.findViewById(R.id.date)
     }
 
@@ -141,7 +197,7 @@ class TaskAdapter(
         )
 
         val d = t.localDate()
-        holder.date.text = if (d != null) Dates.format(d) else t.date
+        holder.date.text = dateLabel(t)
         val colorRes = when {
             t.done -> R.color.done_text
             else -> when (Dates.state(d)) {
@@ -151,6 +207,12 @@ class TaskAdapter(
             }
         }
         holder.date.setTextColor(ContextCompat.getColor(ctx, colorRes))
+
+        holder.star.setImageResource(
+            if (t.star) R.drawable.ic_star_on else R.drawable.ic_star_off
+        )
+        holder.star.alpha = if (t.star) 1f else 0.45f
+        holder.star.setOnClickListener { onStar(t) }
 
         holder.check.setOnClickListener { onToggle(t) }
         holder.itemView.setOnClickListener { onClick(t) }

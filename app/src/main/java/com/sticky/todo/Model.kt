@@ -15,6 +15,8 @@ data class Task(
     var text: String = "",
     var date: String = "",
     var done: Boolean = false,
+    var star: Boolean = false,
+    var repeatDays: Int = 0,
     var seq: Long = 0,
     var doneAt: String? = null,
     var archivedAt: String? = null
@@ -26,6 +28,8 @@ data class Task(
         put("text", text)
         put("date", date)
         put("done", done)
+        put("star", star)
+        put("repeatDays", repeatDays)
         put("seq", seq)
         // JSONObject.NULL 로 넣으면 다시 읽을 때 "null" 이라는 글자가 되어버린다
         put("doneAt", doneAt ?: "")
@@ -38,6 +42,8 @@ data class Task(
             text = o.optString("text", ""),
             date = o.optString("date", ""),
             done = o.optBoolean("done", false),
+            star = o.optBoolean("star", false),
+            repeatDays = o.optInt("repeatDays", 0),
             seq = o.optLong("seq", 0L),
             doneAt = o.optString("doneAt", "").ifEmpty { null },
             archivedAt = o.optString("archivedAt", "").ifEmpty { null }
@@ -49,6 +55,17 @@ data class Task(
 }
 
 enum class DateState { NONE, PAST, TODAY, FUTURE }
+
+/** 목록 오른쪽에 보일 글자. 기한과 반복 주기를 함께 담는다. */
+fun dateLabel(t: Task, today: LocalDate = LocalDate.now()): String {
+    val d = t.localDate()
+    val base = if (d != null) Dates.format(d, today) else t.date
+    return when {
+        t.repeatDays <= 0 -> base
+        base.isBlank() -> "↻${t.repeatDays}일"
+        else -> "$base ↻${t.repeatDays}"
+    }
+}
 
 /**
  * 사람이 적은 날짜 문자열을 해석한다. PC판과 동일한 규칙.
@@ -136,10 +153,16 @@ object Rules {
     /** true 로 바꾸면 완료하지 않은 할 일도 기한이 지나면 보관함으로 보낸다 */
     const val ARCHIVE_UNDONE_OVERDUE = false
 
-    /** 미완료 먼저 → 기한 빠른 순 → 기한 없는 것 → 완료한 것은 맨 아래 */
+    /**
+     * 정렬 순서
+     *   1. 완료하지 않은 것 먼저 (완료한 것은 맨 아래)
+     *   2. 미완료 중에서는 즐겨찾기가 가장 위 — 체크하는 순간 이 특권은 사라진다
+     *   3. 기한 빠른 순 → 기한 없는 것 → 입력한 순서
+     */
     fun sorted(items: List<Task>): List<Task> = items.sortedWith(
         compareBy<Task>(
             { if (it.done) 1 else 0 },
+            { if (!it.done && it.star) 0 else 1 },
             { if (it.localDate() == null) 1 else 0 },
             { it.localDate()?.toEpochDay() ?: 0L },
             { it.seq }
@@ -148,10 +171,39 @@ object Rules {
 
     /** 지금 보관함으로 옮겨야 하는 할 일인가? */
     fun shouldArchive(t: Task, today: LocalDate = LocalDate.now()): Boolean {
+        // 반복 항목은 계속 돌아와야 하므로 보관하지 않는다
+        if (t.repeatDays > 0) return false
         val d = t.localDate()
         if (d != null && d.isBefore(today)) {
             return t.done || ARCHIVE_UNDONE_OVERDUE
         }
         return false
+    }
+
+    /**
+     * 반복 항목의 체크를 풀어줄 때가 됐는지 본다.
+     * 체크한 날로부터 주기(일)가 지나면 체크가 풀리고,
+     * 기한이 있던 항목은 그 기한도 다음 주기로 옮겨진다.
+     * 무언가 바뀌었으면 true.
+     */
+    fun applyRepeat(t: Task, today: LocalDate = LocalDate.now()): Boolean {
+        if (t.repeatDays <= 0 || !t.done) return false
+
+        val doneDay = t.doneAt?.let {
+            try { LocalDate.parse(it.substring(0, 10)) } catch (e: Exception) { null }
+        }
+        if (doneDay == null) {
+            // 완료 시각을 모르면 오늘부터 주기를 센다
+            t.doneAt = Task.now()
+            return true
+        }
+
+        val next = doneDay.plusDays(t.repeatDays.toLong())
+        if (today.isBefore(next)) return false
+
+        t.done = false
+        t.doneAt = null
+        if (t.localDate() != null) t.date = next.toString()
+        return true
     }
 }

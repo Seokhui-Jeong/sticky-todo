@@ -33,6 +33,7 @@ class TaskEditActivity : AppCompatActivity() {
 
     private lateinit var textField: EditText
     private lateinit var dateField: EditText
+    private lateinit var repeatField: EditText
     private var taskId: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -60,6 +61,7 @@ class TaskEditActivity : AppCompatActivity() {
 
         textField = findViewById(R.id.edit_text)
         dateField = findViewById(R.id.edit_date)
+        repeatField = findViewById(R.id.edit_repeat)
         val deleteBtn = findViewById<TextView>(R.id.btn_delete)
         val cancelBtn = findViewById<TextView>(R.id.btn_cancel)
         val saveBtn = findViewById<TextView>(R.id.btn_save)
@@ -73,6 +75,7 @@ class TaskEditActivity : AppCompatActivity() {
             }
             textField.setText(t.text)
             dateField.setText(Dates.format(t.localDate()).ifEmpty { t.date })
+            if (t.repeatDays > 0) repeatField.setText(t.repeatDays.toString())
             textField.setSelection(textField.text.length)
             deleteBtn.visibility = TextView.VISIBLE
             deleteBtn.setOnClickListener {
@@ -95,15 +98,16 @@ class TaskEditActivity : AppCompatActivity() {
     private fun save() {
         val text = textField.text.toString().trim()
         val date = dateField.text.toString().trim()
+        val repeat = repeatField.text.toString().trim().toIntOrNull() ?: 0
         if (text.isEmpty() && date.isEmpty()) {
             finish()
             return
         }
         val id = taskId
         if (id == null) {
-            TodoRepo.add(this, text, date)
+            TodoRepo.add(this, text, date, repeat)
         } else {
-            TodoRepo.update(this, id, text, date)
+            TodoRepo.update(this, id, text, date, repeat)
         }
         TodoRepo.runAutoArchive(this)
         done()

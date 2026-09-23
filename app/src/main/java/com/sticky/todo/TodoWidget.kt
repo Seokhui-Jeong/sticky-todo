@@ -72,27 +72,35 @@ class TodoWidget : AppWidgetProvider() {
             rv.setViewVisibility(R.id.widget_header, headerVisibility)
             rv.setViewVisibility(R.id.widget_divider, headerVisibility)
 
-            // 제목 → 앱 열기
+            // 앱 열기 / 할 일 추가, 두 가지 동작을 미리 만들어 둔다
             val openApp = PendingIntent.getActivity(
                 ctx, widgetId * 10,
                 Intent(ctx, MainActivity::class.java)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
-            rv.setOnClickPendingIntent(R.id.widget_title, openApp)
-            // 머리글이 숨겨졌을 때도 빈 곳을 누르면 앱이 열리도록
-            rv.setOnClickPendingIntent(R.id.widget_empty, openApp)
+            val addTask = PendingIntent.getActivity(
+                ctx, widgetId * 10 + 1,
+                Intent(ctx, TaskEditActivity::class.java)
+                    .putExtra(TaskEditActivity.EXTRA_MODE, TaskEditActivity.MODE_ADD)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
 
-            // ＋ → 추가창
-            rv.setOnClickPendingIntent(
-                R.id.widget_add,
-                PendingIntent.getActivity(
-                    ctx, widgetId * 10 + 1,
-                    Intent(ctx, TaskEditActivity::class.java)
-                        .putExtra(TaskEditActivity.EXTRA_MODE, TaskEditActivity.MODE_ADD)
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                )
+            // 제목은 언제나 앱, ＋ 는 언제나 추가.
+            // 빈 곳(테두리 여백과 목록이 비었을 때의 안내문)만 설정을 따른다.
+            val tapIsAdd = TodoRepo.widgetTap(ctx) == TodoRepo.TAP_ADD
+            val blankTap = if (tapIsAdd) addTask else openApp
+
+            rv.setOnClickPendingIntent(R.id.widget_title, openApp)
+            rv.setOnClickPendingIntent(R.id.widget_count, openApp)
+            rv.setOnClickPendingIntent(R.id.widget_add, addTask)
+            rv.setOnClickPendingIntent(R.id.widget_root, blankTap)
+            rv.setOnClickPendingIntent(R.id.widget_empty, blankTap)
+
+            rv.setTextViewText(
+                R.id.widget_empty,
+                ctx.getString(if (tapIsAdd) R.string.empty_tap_add else R.string.empty)
             )
 
             // 목록 어댑터 (위젯마다 별도 data URI 로 구분)
