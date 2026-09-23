@@ -1,19 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:background="@drawable/widget_bg"
-    android:padding="10dp">
+    android:paddingStart="8dp"
+    android:paddingEnd="8dp"
+    android:paddingTop="6dp"
+    android:paddingBottom="6dp">
 
+    <!-- 머리글. 위젯 높이가 낮으면 코드에서 통째로 숨긴다 -->
     <LinearLayout
+        android:id="@+id/widget_header"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:paddingStart="6dp"
-        android:paddingEnd="2dp"
-        android:paddingBottom="6dp">
+        android:paddingStart="4dp"
+        android:paddingBottom="3dp">
 
         <TextView
             android:id="@+id/widget_title"
@@ -21,7 +26,7 @@
             android:layout_height="wrap_content"
             android:text="@string/app_name"
             android:textColor="@color/widget_text"
-            android:textSize="14sp"
+            android:textSize="13sp"
             android:textStyle="bold" />
 
         <TextView
@@ -29,15 +34,15 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:layout_marginStart="6dp"
+            android:layout_marginStart="5dp"
             android:textColor="@color/widget_muted"
-            android:textSize="12sp" />
+            android:textSize="11sp" />
 
         <ImageView
             android:id="@+id/widget_add"
-            android:layout_width="30dp"
-            android:layout_height="30dp"
-            android:padding="4dp"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:padding="3dp"
             android:src="@drawable/ic_add"
             android:contentDescription="@string/add_task" />
     </LinearLayout>
@@ -46,6 +51,7 @@
          RemoteViews 가 허용하지 않는 뷰가 하나라도 있으면
          위젯 전체가 "위젯을 생성할 수 없습니다" 로 뜬다. -->
     <FrameLayout
+        android:id="@+id/widget_divider"
         android:layout_width="match_parent"
         android:layout_height="1dp"
         android:background="@color/widget_divider" />
@@ -58,7 +64,7 @@
         android:divider="@null"
         android:dividerHeight="0dp"
         android:scrollbars="none"
-        android:paddingTop="2dp" />
+        android:paddingTop="1dp" />
 
     <TextView
         android:id="@+id/widget_empty"
@@ -68,6 +74,6 @@
         android:gravity="center"
         android:text="@string/empty"
         android:textColor="@color/widget_muted"
-        android:textSize="13sp"
+        android:textSize="12sp"
         android:visibility="gone" />
 </LinearLayout>
