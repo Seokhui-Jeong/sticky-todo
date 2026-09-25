@@ -3,11 +3,14 @@ package com.sticky.todo
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.text.InputType
 import android.view.View
 import android.view.WindowManager
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 
@@ -36,11 +39,15 @@ class TaskEditActivity : AppCompatActivity() {
 
     private lateinit var textField: EditText
     private lateinit var dateField: EditText
-    private lateinit var repeatField: EditText
+    private lateinit var repeatValue: TextView
     private lateinit var starIcon: ImageView
     private lateinit var starLabel: TextView
+
     private var taskId: String? = null
     private var starOn = false
+    private var repeatMode = Repeat.NONE
+    private var repeatDays = 0
+    private var repeatWeekdays = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val mode = intent?.getStringExtra(EXTRA_MODE) ?: MODE_ADD
@@ -67,14 +74,16 @@ class TaskEditActivity : AppCompatActivity() {
 
         textField = findViewById(R.id.edit_text)
         dateField = findViewById(R.id.edit_date)
-        repeatField = findViewById(R.id.edit_repeat)
+        repeatValue = findViewById(R.id.repeat_value)
         starIcon = findViewById(R.id.edit_star)
         starLabel = findViewById(R.id.edit_star_label)
+
+        findViewById<View>(R.id.repeat_row).setOnClickListener { chooseRepeatMode() }
         findViewById<View>(R.id.star_row).setOnClickListener {
             starOn = !starOn
             paintStar()
         }
-        paintStar()
+
         val deleteBtn = findViewById<TextView>(R.id.btn_delete)
         val cancelBtn = findViewById<TextView>(R.id.btn_cancel)
         val saveBtn = findViewById<TextView>(R.id.btn_save)
@@ -88,9 +97,10 @@ class TaskEditActivity : AppCompatActivity() {
             }
             textField.setText(t.text)
             dateField.setText(Dates.format(t.localDate()).ifEmpty { t.date })
-            if (t.repeatDays > 0) repeatField.setText(t.repeatDays.toString())
+            repeatMode = t.repeatMode
+            repeatDays = t.repeatDays
+            repeatWeekdays = t.repeatWeekdays
             starOn = t.star
-            paintStar()
             textField.setSelection(textField.text.length)
             deleteBtn.visibility = TextView.VISIBLE
             deleteBtn.setOnClickListener {
@@ -98,6 +108,9 @@ class TaskEditActivity : AppCompatActivity() {
                 done()
             }
         }
+
+        paintStar()
+        paintRepeat()
 
         textField.requestFocus()
         cancelBtn.setOnClickListener { finish() }
@@ -110,25 +123,108 @@ class TaskEditActivity : AppCompatActivity() {
         recreate()
     }
 
-    private fun save() {
-        val text = textField.text.toString().trim()
-        val date = dateField.text.toString().trim()
-        val repeat = repeatField.text.toString().trim().toIntOrNull() ?: 0
-        if (text.isEmpty() && date.isEmpty()) {
-            finish()
-            return
-        }
-        val id = taskId
-        if (id == null) {
-            TodoRepo.add(this, text, date, repeat, starOn)
-        } else {
-            TodoRepo.update(this, id, text, date, repeat, starOn)
-        }
-        TodoRepo.runAutoArchive(this)
-        done()
+    // ── 반복 설정 ─────────────────────────────────────────
+
+    /** 1단계: 방식 고르기 */
+    private fun chooseRepeatMode() {
+        val modes = arrayOf(Repeat.NONE, Repeat.DUE, Repeat.DONE, Repeat.WEEK)
+        val labels = arrayOf(
+            getString(R.string.repeat_none),
+            getString(R.string.repeat_due),
+            getString(R.string.repeat_done),
+            getString(R.string.repeat_week)
+        )
+        val current = modes.indexOf(repeatMode).coerceAtLeast(0)
+        AlertDialog.Builder(this)
+            .setTitle(R.string.repeat_mode_title)
+            .setSingleChoiceItems(labels, current) { dialog, which ->
+                dialog.dismiss()
+                when (modes[which]) {
+                    Repeat.NONE -> {
+                        repeatMode = Repeat.NONE
+                        paintRepeat()
+                    }
+                    Repeat.WEEK -> chooseWeekdays()
+                    else -> chooseDays(modes[which])
+                }
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
     }
 
-    /** 즐겨찾기 줄의 별과 글자를 현재 상태에 맞게 그린다 */
+    /** 2단계(기한/체크일 기준): 며칠마다 */
+    private fun chooseDays(mode: String) {
+        val input = EditText(this).apply {
+            inputType = InputType.TYPE_CLASS_NUMBER
+            hint = getString(R.string.repeat_days_hint)
+            if (repeatDays > 0) setText(repeatDays.toString())
+            setSelection(text.length)
+        }
+        val box = FrameLayout(this).apply {
+            val pad = (20 * resources.displayMetrics.density).toInt()
+            setPadding(pad, pad / 2, pad, 0)
+            addView(input)
+        }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.repeat_days_title)
+            .setView(box)
+            .setNegativeButton(R.string.cancel, null)
+            .setPositiveButton(R.string.save) { _, _ ->
+                val n = input.text.toString().trim().toIntOrNull() ?: 0
+                if (n > 0) {
+                    repeatMode = mode
+                    repeatDays = n
+                } else {
+                    repeatMode = Repeat.NONE
+                }
+                paintRepeat()
+            }
+            .show()
+    }
+
+    /** 2단계(고정 요일): 요일 고르기 */
+    private fun chooseWeekdays() {
+        val checked = BooleanArray(7) { repeatWeekdays and (1 shl it) != 0 }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.repeat_week_title)
+            .setMultiChoiceItems(Repeat.SHORT, checked) { _, which, isChecked ->
+                checked[which] = isChecked
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .setPositiveButton(R.string.save) { _, _ ->
+                var mask = 0
+                checked.forEachIndexed { i, on -> if (on) mask = mask or (1 shl i) }
+                if (mask != 0) {
+                    repeatMode = Repeat.WEEK
+                    repeatWeekdays = mask
+                } else {
+                    repeatMode = Repeat.NONE
+                }
+                paintRepeat()
+            }
+            .show()
+    }
+
+    /** 반복 줄에 지금 설정을 적는다 */
+    private fun paintRepeat() {
+        val text = when {
+            repeatMode == Repeat.WEEK && repeatWeekdays != 0 ->
+                getString(R.string.repeat_week) + " · " + Repeat.weekdayText(repeatWeekdays)
+            repeatMode == Repeat.DUE && repeatDays > 0 ->
+                getString(R.string.repeat_due) + " · ${repeatDays}일마다"
+            repeatMode == Repeat.DONE && repeatDays > 0 ->
+                getString(R.string.repeat_done) + " · ${repeatDays}일마다"
+            else -> getString(R.string.repeat_none)
+        }
+        val on = repeatMode != Repeat.NONE
+        repeatValue.text = text
+        repeatValue.setTextColor(
+            ContextCompat.getColor(this, if (on) R.color.accent else R.color.muted)
+        )
+    }
+
+    // ── 즐겨찾기 ──────────────────────────────────────────
+
     private fun paintStar() {
         starIcon.setImageResource(
             if (starOn) R.drawable.ic_star_on else R.drawable.ic_star_off
@@ -140,6 +236,25 @@ class TaskEditActivity : AppCompatActivity() {
         starLabel.setTextColor(
             ContextCompat.getColor(this, if (starOn) R.color.text else R.color.muted)
         )
+    }
+
+    // ── 저장 ──────────────────────────────────────────────
+
+    private fun save() {
+        val text = textField.text.toString().trim()
+        val date = dateField.text.toString().trim()
+        if (text.isEmpty() && date.isEmpty()) {
+            finish()
+            return
+        }
+        val id = taskId
+        if (id == null) {
+            TodoRepo.add(this, text, date, repeatMode, repeatDays, repeatWeekdays, starOn)
+        } else {
+            TodoRepo.update(this, id, text, date, repeatMode, repeatDays, repeatWeekdays, starOn)
+        }
+        TodoRepo.runAutoArchive(this)
+        done()
     }
 
     private fun done() {

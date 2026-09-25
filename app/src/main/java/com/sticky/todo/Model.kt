@@ -1,10 +1,33 @@
 package com.sticky.todo
 
 import org.json.JSONObject
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.UUID
+
+/** 반복 방식 */
+object Repeat {
+    const val NONE = "none"   // 반복 없음
+    const val DUE = "due"     // 기한 기준 — 기한으로부터 n일 뒤가 다음 차례 (기본)
+    const val DONE = "done"   // 체크일 기준 — 체크한 날로부터 n일 뒤
+    const val WEEK = "week"   // 고정 요일 — 정해둔 요일마다
+
+    /** 월=1 … 일=64 비트 */
+    fun bit(d: DayOfWeek): Int = 1 shl (d.value - 1)
+    fun has(mask: Int, d: DayOfWeek): Boolean = mask and bit(d) != 0
+
+    val SHORT = arrayOf("월", "화", "수", "목", "금", "토", "일")
+
+    /** 요일 묶음을 '월·수·금' 처럼. 목록에서는 자리를 아끼려고 sep 을 비운다. */
+    fun weekdayText(mask: Int, sep: String = "·"): String {
+        if (mask == 0) return ""
+        if (mask and 0b1111111 == 0b1111111) return "매일"
+        return (1..7).filter { mask and (1 shl (it - 1)) != 0 }
+            .joinToString(sep) { SHORT[it - 1] }
+    }
+}
 
 /**
  * 할 일 한 건.
@@ -16,12 +39,21 @@ data class Task(
     var date: String = "",
     var done: Boolean = false,
     var star: Boolean = false,
+    var repeatMode: String = Repeat.NONE,
     var repeatDays: Int = 0,
+    var repeatWeekdays: Int = 0,
     var seq: Long = 0,
     var doneAt: String? = null,
     var archivedAt: String? = null
 ) {
     fun localDate(): LocalDate? = Dates.parse(date)
+
+    /** 실제로 반복이 걸려 있는가 */
+    fun repeating(): Boolean = when (repeatMode) {
+        Repeat.DUE, Repeat.DONE -> repeatDays > 0
+        Repeat.WEEK -> repeatWeekdays != 0
+        else -> false
+    }
 
     fun toJson(): JSONObject = JSONObject().apply {
         put("id", id)
@@ -29,7 +61,9 @@ data class Task(
         put("date", date)
         put("done", done)
         put("star", star)
+        put("repeatMode", repeatMode)
         put("repeatDays", repeatDays)
+        put("repeatWeekdays", repeatWeekdays)
         put("seq", seq)
         // JSONObject.NULL 로 넣으면 다시 읽을 때 "null" 이라는 글자가 되어버린다
         put("doneAt", doneAt ?: "")
@@ -37,17 +71,26 @@ data class Task(
     }
 
     companion object {
-        fun fromJson(o: JSONObject) = Task(
-            id = o.optString("id", UUID.randomUUID().toString().take(12)),
-            text = o.optString("text", ""),
-            date = o.optString("date", ""),
-            done = o.optBoolean("done", false),
-            star = o.optBoolean("star", false),
-            repeatDays = o.optInt("repeatDays", 0),
-            seq = o.optLong("seq", 0L),
-            doneAt = o.optString("doneAt", "").ifEmpty { null },
-            archivedAt = o.optString("archivedAt", "").ifEmpty { null }
-        )
+        fun fromJson(o: JSONObject): Task {
+            val days = o.optInt("repeatDays", 0)
+            // 예전 자료에는 방식 구분이 없었다. 주기만 있던 항목은 기한 기준으로 본다.
+            val mode = o.optString("repeatMode", "").ifEmpty {
+                if (days > 0) Repeat.DUE else Repeat.NONE
+            }
+            return Task(
+                id = o.optString("id", UUID.randomUUID().toString().take(12)),
+                text = o.optString("text", ""),
+                date = o.optString("date", ""),
+                done = o.optBoolean("done", false),
+                star = o.optBoolean("star", false),
+                repeatMode = mode,
+                repeatDays = days,
+                repeatWeekdays = o.optInt("repeatWeekdays", 0),
+                seq = o.optLong("seq", 0L),
+                doneAt = o.optString("doneAt", "").ifEmpty { null },
+                archivedAt = o.optString("archivedAt", "").ifEmpty { null }
+            )
+        }
 
         fun now(): String =
             LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss"))
@@ -56,14 +99,19 @@ data class Task(
 
 enum class DateState { NONE, PAST, TODAY, FUTURE }
 
-/** 목록 오른쪽에 보일 글자. 기한과 반복 주기를 함께 담는다. */
+/** 목록 오른쪽에 보일 글자. 기한과 반복을 함께 담는다. */
 fun dateLabel(t: Task, today: LocalDate = LocalDate.now()): String {
     val d = t.localDate()
     val base = if (d != null) Dates.format(d, today) else t.date
+    val rep = when {
+        !t.repeating() -> ""
+        t.repeatMode == Repeat.WEEK -> "↻" + Repeat.weekdayText(t.repeatWeekdays, "")
+        else -> "↻${t.repeatDays}"
+    }
     return when {
-        t.repeatDays <= 0 -> base
-        base.isBlank() -> "↻${t.repeatDays}일"
-        else -> "$base ↻${t.repeatDays}"
+        rep.isEmpty() -> base
+        base.isBlank() -> rep
+        else -> "$base $rep"
     }
 }
 
@@ -147,7 +195,7 @@ object Dates {
     }
 }
 
-/** 정렬 / 자동 보관 규칙 (PC판과 동일) */
+/** 정렬 / 자동 보관 / 반복 규칙 */
 object Rules {
 
     /** true 로 바꾸면 완료하지 않은 할 일도 기한이 지나면 보관함으로 보낸다 */
@@ -172,7 +220,7 @@ object Rules {
     /** 지금 보관함으로 옮겨야 하는 할 일인가? */
     fun shouldArchive(t: Task, today: LocalDate = LocalDate.now()): Boolean {
         // 반복 항목은 계속 돌아와야 하므로 보관하지 않는다
-        if (t.repeatDays > 0) return false
+        if (t.repeating()) return false
         val d = t.localDate()
         if (d != null && d.isBefore(today)) {
             return t.done || ARCHIVE_UNDONE_OVERDUE
@@ -180,30 +228,66 @@ object Rules {
         return false
     }
 
+    /** 기준일 다음으로 오는, 정해둔 요일 */
+    fun nextWeekdayAfter(from: LocalDate, mask: Int): LocalDate {
+        for (i in 1..7) {
+            val d = from.plusDays(i.toLong())
+            if (Repeat.has(mask, d.dayOfWeek)) return d
+        }
+        return from.plusDays(7)
+    }
+
+    /** 기준일 포함, 그날부터 처음 오는 정해둔 요일 */
+    fun weekdayOnOrAfter(from: LocalDate, mask: Int): LocalDate {
+        for (i in 0..6) {
+            val d = from.plusDays(i.toLong())
+            if (Repeat.has(mask, d.dayOfWeek)) return d
+        }
+        return from
+    }
+
     /**
-     * 반복 항목의 체크를 풀어줄 때가 됐는지 본다.
-     * 체크한 날로부터 주기(일)가 지나면 체크가 풀리고,
-     * 기한이 있던 항목은 그 기한도 다음 주기로 옮겨진다.
-     * 무언가 바뀌었으면 true.
+     * 반복 항목의 체크를 풀어줄 때가 됐는지 본다. 무언가 바뀌었으면 true.
+     *
+     *  기한 기준  : 기한 + n일 이 다음 차례. 늦게 체크해도 주기가 밀리지 않는다.
+     *  체크일 기준: 체크한 날 + n일. 마지막으로 한 시점이 중요한 일에 맞다.
+     *  고정 요일  : 정해둔 요일 중 다음 것.
      */
     fun applyRepeat(t: Task, today: LocalDate = LocalDate.now()): Boolean {
-        if (t.repeatDays <= 0 || !t.done) return false
+        if (!t.repeating() || !t.done) return false
 
         val doneDay = t.doneAt?.let {
             try { LocalDate.parse(it.substring(0, 10)) } catch (e: Exception) { null }
         }
         if (doneDay == null) {
-            // 완료 시각을 모르면 오늘부터 주기를 센다
+            // 완료 시각을 모르면 오늘부터 센다
             t.doneAt = Task.now()
             return true
         }
 
-        val next = doneDay.plusDays(t.repeatDays.toLong())
+        val due = t.localDate()
+        val step = t.repeatDays.toLong()
+
+        val next: LocalDate = when (t.repeatMode) {
+            Repeat.WEEK -> nextWeekdayAfter(due ?: doneDay, t.repeatWeekdays)
+            Repeat.DONE -> doneDay.plusDays(step)
+            // 기한 기준. 기한을 안 적었으면 체크한 날을 기준으로 삼는다.
+            else -> (due ?: doneDay).plusDays(step)
+        }
+
         if (today.isBefore(next)) return false
 
         t.done = false
         t.doneAt = null
-        if (t.localDate() != null) t.date = next.toString()
+
+        // 기한을 다음 차례로 옮긴다. 오래 지났으면 오늘 이후로 따라잡는다.
+        if (t.repeatMode == Repeat.WEEK) {
+            t.date = weekdayOnOrAfter(today, t.repeatWeekdays).toString()
+        } else if (due != null && step > 0) {
+            var d = next
+            while (d.isBefore(today)) d = d.plusDays(step)
+            t.date = d.toString()
+        }
         return true
     }
 }

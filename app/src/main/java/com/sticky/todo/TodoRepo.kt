@@ -121,7 +121,9 @@ object TodoRepo {
         ctx: Context,
         text: String,
         dateRaw: String,
+        repeatMode: String = Repeat.NONE,
         repeatDays: Int = 0,
+        repeatWeekdays: Int = 0,
         star: Boolean = false
     ): Task {
         ensure(ctx)
@@ -130,7 +132,9 @@ object TodoRepo {
             text = text.trim(),
             date = Dates.normalize(dateRaw),
             star = star,
+            repeatMode = repeatMode,
             repeatDays = repeatDays.coerceAtLeast(0),
+            repeatWeekdays = repeatWeekdays,
             seq = seq
         )
         items.add(t)
@@ -138,21 +142,25 @@ object TodoRepo {
         return t
     }
 
-    @Synchronized
     /** star 가 null 이면 즐겨찾기 상태는 건드리지 않는다 */
+    @Synchronized
     fun update(
         ctx: Context,
         id: String,
         text: String,
         dateRaw: String,
+        repeatMode: String = Repeat.NONE,
         repeatDays: Int = 0,
+        repeatWeekdays: Int = 0,
         star: Boolean? = null
     ) {
         ensure(ctx)
         items.firstOrNull { it.id == id }?.let {
             it.text = text.trim()
             it.date = Dates.normalize(dateRaw)
+            it.repeatMode = repeatMode
             it.repeatDays = repeatDays.coerceAtLeast(0)
+            it.repeatWeekdays = repeatWeekdays
             if (star != null) it.star = star
         }
         persist(ctx)
