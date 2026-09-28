@@ -9,3 +9,8 @@
 .externalNativeBuild
 .cxx
 /.gradle-dist
+
+# 서명 키는 저장소에 올리지 않는다. GitHub Secret 으로 넣는다.
+/keystore/
+*.jks
+*.keystore

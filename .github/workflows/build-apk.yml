@@ -23,7 +23,22 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      # 러너 이미지에 안드로이드 SDK 가 이미 들어있으므로 setup-android 액션은 쓰지 않는다
+      # 서명 키를 저장소에 두면 공개되므로 GitHub Secret 에 넣어두고 여기서 되살린다.
+      # 키가 매번 바뀌면 폰이 덮어쓰기(업데이트)를 거부하기 때문에 고정 키가 꼭 필요하다.
+      - name: Restore signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::error::ANDROID_KEYSTORE_B64 시크릿이 없습니다."
+            echo "저장소 Settings → Secrets and variables → Actions → New repository secret 에서"
+            echo "이름을 ANDROID_KEYSTORE_B64 로 만들고 키스토어 base64 값을 넣어 주세요."
+            exit 1
+          fi
+          mkdir -p keystore
+          printf '%s' "$KEYSTORE_B64" | base64 -d > keystore/sticky.jks
+          echo "키스토어 복원 완료 ($(wc -c < keystore/sticky.jks) 바이트)"
+
       - name: Show environment
         run: |
           echo "ANDROID_HOME=${ANDROID_HOME:-(unset)}"
@@ -81,3 +96,8 @@ jobs:
             app/build/outputs/logs/**
             build/reports/**
           if-no-files-found: ignore
+
+      # 빌드가 끝나면 서버에 남은 키 파일을 지운다
+      - name: Clean up signing key
+        if: always()
+        run: rm -f keystore/sticky.jks

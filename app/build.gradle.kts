@@ -3,27 +3,54 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+// 빌드할 때마다 서명 키가 달라지면 폰이 덮어쓰기(업데이트)를 거부한다.
+// 그래서 저장소에 고정 키를 하나 넣어두고 항상 그것으로 서명한다.
+val fixedKeystore = rootProject.file("keystore/sticky.jks")
+
+// GitHub Actions 는 실행 번호를 넘겨준다. 빌드할 때마다 버전이 하나씩 올라가
+// 폰이 "업데이트"로 인식한다. 로컬 빌드는 1 로 둔다.
+val buildNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toIntOrNull() ?: 1
+
 android {
     namespace = "com.sticky.todo"
     compileSdk = 34
+
+    signingConfigs {
+        if (fixedKeystore.exists()) {
+            create("app") {
+                storeFile = fixedKeystore
+                storePassword = "stickytodo"
+                keyAlias = "sticky"
+                keyPassword = "stickytodo"
+            }
+        }
+    }
 
     defaultConfig {
         applicationId = "com.sticky.todo"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = buildNumber
+        versionName = "1.$buildNumber"
     }
 
     buildTypes {
-        release {
+        getByName("debug") {
+            if (fixedKeystore.exists()) {
+                signingConfig = signingConfigs.getByName("app")
+            }
+        }
+        getByName("release") {
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            // 서명 키가 없어도 빌드되도록 debug 서명 사용
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (fixedKeystore.exists()) {
+                signingConfigs.getByName("app")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 
