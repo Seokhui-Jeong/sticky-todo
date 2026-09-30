@@ -268,25 +268,42 @@ object Rules {
         val due = t.localDate()
         val step = t.repeatDays.toLong()
 
-        val next: LocalDate = when (t.repeatMode) {
-            Repeat.WEEK -> nextWeekdayAfter(due ?: doneDay, t.repeatWeekdays)
-            Repeat.DONE -> doneDay.plusDays(step)
-            // 기한 기준. 기한을 안 적었으면 체크한 날을 기준으로 삼는다.
-            else -> (due ?: doneDay).plusDays(step)
+        // 다시 할 일로 돌아오는 날.
+        //   기한이 있으면 그 기한이 지난 다음 날 돌아온다. 그래야 다음 차례를
+        //   마감 전에 미리 보고 준비할 수 있다.
+        //   이미 기한이 지난 뒤에 체크했다면 그 자리에서 곧바로 다음 차례로 넘어간다.
+        //   체크일 기준은 말 그대로 체크한 날로부터 주기만큼 지나야 돌아온다.
+        val revive: LocalDate = when {
+            t.repeatMode == Repeat.DONE -> doneDay.plusDays(step)
+            due != null -> due.plusDays(1)
+            t.repeatMode == Repeat.WEEK -> nextWeekdayAfter(doneDay, t.repeatWeekdays)
+            else -> doneDay.plusDays(step)
         }
 
-        if (today.isBefore(next)) return false
+        if (today.isBefore(revive)) return false
 
         t.done = false
         t.doneAt = null
 
         // 기한을 다음 차례로 옮긴다. 오래 지났으면 오늘 이후로 따라잡는다.
-        if (t.repeatMode == Repeat.WEEK) {
-            t.date = weekdayOnOrAfter(today, t.repeatWeekdays).toString()
-        } else if (due != null && step > 0) {
-            var d = next
-            while (d.isBefore(today)) d = d.plusDays(step)
-            t.date = d.toString()
+        when {
+            t.repeatMode == Repeat.WEEK -> {
+                // 방금 해치운 날을 다시 기한으로 잡으면 안 되므로 그 다음 날부터 찾는다
+                val base = if (today.isAfter(doneDay)) today else doneDay.plusDays(1)
+                t.date = weekdayOnOrAfter(base, t.repeatWeekdays).toString()
+            }
+            t.repeatMode == Repeat.DONE && due != null && step > 0 -> {
+                // 체크일 기준은 돌아오는 날이 곧 다음 기한이다
+                var d = doneDay.plusDays(step)
+                while (d.isBefore(today)) d = d.plusDays(step)
+                t.date = d.toString()
+            }
+            due != null && step > 0 -> {
+                var d = due.plusDays(step)
+                while (d.isBefore(today)) d = d.plusDays(step)
+                t.date = d.toString()
+            }
+            // 기한을 안 적은 항목은 날짜를 만들어 붙이지 않는다. 체크만 풀린다.
         }
         return true
     }
