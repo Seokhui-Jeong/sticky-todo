@@ -1,13 +1,24 @@
-# 할 일 메모 (안드로이드 위젯)
+# 할 일 메모
 
-PC판 바탕화면 메모와 같은 규칙으로 동작하는 안드로이드 앱 + 홈 화면 위젯입니다.
+폰 홈 화면 위젯과 PC 바탕화면 메모가 같은 할 일 목록을 구글 드라이브로 주고받습니다.
+
+## ⬇ 최신 버전 받기
+
+| | 받기 | |
+|---|---|---|
+| 📱 **폰 앱 · 위젯** | [todo-widget.apk](https://github.com/Seokhui-Jeong/sticky-todo/releases/latest/download/todo-widget.apk) | 폰에서 눌러 바로 설치 |
+| 🖥 **할 일 메모 Desktop** | [sticky-todo.exe](https://github.com/Seokhui-Jeong/sticky-todo/releases/download/desktop/sticky-todo.exe) | 설치 없이 바로 실행 |
+
+두 주소는 늘 가장 최근에 빌드한 파일을 가리킵니다.
+빌드 기록은 [Actions](https://github.com/Seokhui-Jeong/sticky-todo/actions) 왼쪽에서
+**Build APK** / **Build Desktop** 을 골라 보면 각각의 최신 빌드가 맨 위에 나옵니다.
 
 ```
 ┌─────────────────────────────┐
 │ 할 일  3                 ＋ │   ← 제목을 누르면 앱, ＋ 를 누르면 추가창
 ├─────────────────────────────┤
-│ ☐  보고서 초안 쓰기    9/19 │   ← 네모를 누르면 완료 토글
-│ ☐  회의 자료 정리      9/20 │   ← 글자를 누르면 편집창
+│ ☐ ★ 보고서 초안 쓰기   9/19 │   ← 즐겨찾기는 맨 위
+│ ☐  회의 자료 정리 9/20 ↻7   │   ← 반복 일정
 │ ☑  메일 회신           9/25 │   ← 완료한 것은 맨 아래로
 └─────────────────────────────┘
 ```
@@ -81,8 +92,8 @@ const val ARCHIVE_UNDONE_OVERDUE = false  // true 로 바꾸면 미완료도 기
 
 ## 데이터
 
-폰 내부 저장소에만 보관되며 서버로 나가지 않습니다.
-앱을 지우면 같이 지워집니다.
+각 기기에 저장되고, 구글 계정을 연결하면 드라이브의 앱 전용 숨김 공간(이 앱만 볼 수 있음)에
+목록 하나를 두고 기기끼리 맞춥니다. PC 앱 자료는 `%APPDATA%\StickyTodo` 에 있습니다.
 
 ---
 
