@@ -39,8 +39,14 @@ SYNC_DELAY_MS = 4000              # 바꾼 뒤 이만큼 기다렸다가 올린�
 SYNC_EVERY_MS = 5 * 60 * 1000     # 켜져 있는 동안 주기적으로 받아오기
 TICK_MS = 30 * 1000               # 날짜가 바뀌었는지 확인
 
-RESIZE_EDGE = 4
-RESIZE_CORNER = 12
+RESIZE_EDGE = 4          # 가장자리에서 이만큼 안쪽까지 잡힌다 (눈에는 안 보임)
+RESIZE_CORNER = 12       # 모서리는 이만큼 사각형
+EDGE_TAG = "StickyEdge"
+EDGE_CURSORS = {
+    "n": "sb_v_double_arrow", "s": "sb_v_double_arrow",
+    "w": "sb_h_double_arrow", "e": "sb_h_double_arrow",
+    "nw": "size_nw_se", "se": "size_nw_se", "ne": "size_ne_sw", "sw": "size_ne_sw",
+}
 MIN_W, MIN_H = 220, 140
 
 LIGHT = dict(
@@ -126,6 +132,44 @@ def replace_old_startup():
     set_startup(False, OLD_RUN_NAME)
     set_startup(True)
     return True
+
+
+# ── 작업 표시줄에서 숨기기 ────────────────────────────────
+
+def hide_from_taskbar(root):
+    """바탕화면 메모처럼 쓰도록 작업 표시줄과 Alt+Tab 목록에서 뺀다 (윈도우 전용).
+    '도구 창' 표시를 달고, 작업 표시줄이 다시 읽도록 한 번 숨겼다 보여준다."""
+    try:
+        import ctypes
+        from ctypes import wintypes
+        user32 = ctypes.windll.user32
+    except Exception:
+        return
+    try:
+        GA_ROOT, GWL_EXSTYLE = 2, -20
+        WS_EX_TOOLWINDOW, WS_EX_APPWINDOW = 0x00000080, 0x00040000
+        SW_HIDE, SW_SHOWNOACTIVATE = 0, 4
+        get = getattr(user32, "GetWindowLongPtrW", user32.GetWindowLongW)
+        put = getattr(user32, "SetWindowLongPtrW", user32.SetWindowLongW)
+        get.restype = ctypes.c_ssize_t
+        get.argtypes = [wintypes.HWND, ctypes.c_int]
+        put.restype = ctypes.c_ssize_t
+        put.argtypes = [wintypes.HWND, ctypes.c_int, ctypes.c_ssize_t]
+        user32.GetAncestor.restype = wintypes.HWND
+        user32.GetAncestor.argtypes = [wintypes.HWND, ctypes.c_uint]
+
+        root.update_idletasks()
+        hwnd = user32.GetAncestor(root.winfo_id(), GA_ROOT)
+        if not hwnd:
+            return
+        style = get(hwnd, GWL_EXSTYLE)
+        new = (style | WS_EX_TOOLWINDOW) & ~WS_EX_APPWINDOW
+        if new != style:
+            put(hwnd, GWL_EXSTYLE, new)
+            user32.ShowWindow(hwnd, SW_HIDE)
+            user32.ShowWindow(hwnd, SW_SHOWNOACTIVATE)
+    except Exception:
+        pass
 
 
 # ── 한 번만 실행 ──────────────────────────────────────────
@@ -256,6 +300,7 @@ class App(object):
         self._build_window()
         self.build_ui()
 
+        self.root.after(10, lambda: hide_from_taskbar(self.root))
         self.root.after(200, self._first_run)
         self.root.after(150, self._pump)
         self.root.after(TICK_MS, self._tick)
@@ -422,40 +467,111 @@ class App(object):
         self._drag = None
         self.save_window()
 
-    def _build_edges(self):
-        E, C = RESIZE_EDGE, RESIZE_CORNER
-        specs = [
-            ("n", dict(relx=0, rely=0, anchor="nw", relwidth=1.0, height=E), "sb_v_double_arrow"),
-            ("s", dict(relx=0, rely=1.0, anchor="sw", relwidth=1.0, height=E), "sb_v_double_arrow"),
-            ("w", dict(relx=0, rely=0, anchor="nw", width=E, relheight=1.0), "sb_h_double_arrow"),
-            ("e", dict(relx=1.0, rely=0, anchor="ne", width=E, relheight=1.0), "sb_h_double_arrow"),
-            ("nw", dict(relx=0, rely=0, anchor="nw", width=C, height=C), "size_nw_se"),
-            ("ne", dict(relx=1.0, rely=0, anchor="ne", width=C, height=C), "size_ne_sw"),
-            ("sw", dict(relx=0, rely=1.0, anchor="sw", width=C, height=C), "size_ne_sw"),
-            ("se", dict(relx=1.0, rely=1.0, anchor="se", width=C, height=C), "size_nw_se"),
-        ]
-        p = self.pal
-        self.edges = []
-        for mode, kw, cursor in specs:
-            try:
-                f = tk.Frame(self.root, bg=p["border"], cursor=cursor)
-            except tk.TclError:
-                f = tk.Frame(self.root, bg=p["border"])
-            f.place(**kw)
-            f.bind("<ButtonPress-1>", lambda e, m=mode: self._resize_start(e, m))
-            f.bind("<B1-Motion>", self._resize_move)
-            f.bind("<ButtonRelease-1>", self._resize_end)
-            f.bind("<Enter>", lambda e, w=f: w.configure(bg=p["edge_hover"]))
-            f.bind("<Leave>", lambda e, w=f: w.configure(bg=p["border"]))
-            self.edges.append((f, kw, mode))
-        self._show_edges(not self.collapsed)
+    # 창 가장자리 크기 조절.
+    # 예전에는 가장자리에 얇은 틀을 깔았는데, 그 틀이 눈에 보였다.
+    # 이제는 틀 없이 마우스가 가장자리 몇 픽셀 안에 있는지만 보고 판단한다.
+    # 모든 위젯 맨 앞에 EDGE_TAG 를 붙여, 가장자리에서 누른 경우에는
+    # 원래 위젯(입력칸·체크박스 등)보다 먼저 가로채서 크기 조절로 쓴다.
 
-    def _show_edges(self, show):
-        for f, kw, mode in self.edges:
-            if show or mode in ("w", "e"):
-                f.place(**kw)
-            else:
-                f.place_forget()
+    def _build_edges(self):
+        r = self.root
+        r.bind_class(EDGE_TAG, "<Motion>", self._edge_motion)
+        r.bind_class(EDGE_TAG, "<Leave>", self._edge_leave)
+        r.bind_class(EDGE_TAG, "<ButtonPress-1>", self._edge_press)
+        r.bind_class(EDGE_TAG, "<B1-Motion>", self._edge_drag)
+        r.bind_class(EDGE_TAG, "<ButtonRelease-1>", self._edge_release)
+        self._cursor_saved = None
+        self._tag_tree(r)
+
+    def _tag_tree(self, w):
+        try:
+            tags = w.bindtags()
+            if EDGE_TAG not in tags:
+                w.bindtags((EDGE_TAG,) + tuple(tags))
+            for c in w.winfo_children():
+                if not isinstance(c, (tk.Toplevel, tk.Menu)):
+                    self._tag_tree(c)
+        except tk.TclError:
+            pass
+
+    def _edge_mode(self, e):
+        """마우스가 있는 가장자리. 가장자리가 아니면 None"""
+        r = self.root
+        try:
+            if e.widget.winfo_toplevel() is not r:
+                return None
+            x = e.x_root - r.winfo_rootx()
+            y = e.y_root - r.winfo_rooty()
+            w, h = r.winfo_width(), r.winfo_height()
+        except (tk.TclError, AttributeError):
+            return None
+        E, C = RESIZE_EDGE, RESIZE_CORNER
+        if x < 0 or y < 0 or x >= w or y >= h:
+            return None
+        if self.collapsed:   # 접혀 있을 때는 가로만
+            return "w" if x < E else ("e" if x >= w - E else None)
+        v = "n" if y < C else ("s" if y >= h - C else "")
+        hz = "w" if x < C else ("e" if x >= w - C else "")
+        if v and hz:
+            return v + hz            # 모서리
+        if x < E:
+            return "w"
+        if x >= w - E:
+            return "e"
+        if y < E:
+            return "n"
+        if y >= h - E:
+            return "s"
+        return None
+
+    def _set_cursor(self, widget, mode):
+        saved = self._cursor_saved
+        if saved and (saved[0] is not widget or mode is None):
+            try:
+                saved[0].configure(cursor=saved[1])
+            except tk.TclError:
+                pass
+            self._cursor_saved = saved = None
+        if mode is None:
+            return
+        try:
+            if saved is None:
+                self._cursor_saved = (widget, widget.cget("cursor"))
+            try:
+                widget.configure(cursor=EDGE_CURSORS[mode])
+            except tk.TclError:
+                # size_nw_se 같은 모서리 커서는 윈도우에만 있다
+                widget.configure(cursor="fleur")
+        except tk.TclError:
+            pass
+
+    def _edge_motion(self, e):
+        if self._rs is None:
+            self._set_cursor(e.widget, self._edge_mode(e))
+
+    def _edge_leave(self, e):
+        if self._rs is None:
+            self._set_cursor(e.widget, None)
+
+    def _edge_press(self, e):
+        mode = self._edge_mode(e)
+        if mode is None:
+            return None
+        self._resize_start(e, mode)
+        return "break"
+
+    def _edge_drag(self, e):
+        if self._rs is None:
+            return None
+        self._resize_move(e)
+        return "break"
+
+    def _edge_release(self, e):
+        if self._rs is None:
+            return None
+        self._resize_end(e)
+        self._set_cursor(e.widget, self._edge_mode(e))
+        return "break"
 
     def _resize_start(self, e, mode):
         self._rs = dict(mode=mode, mx=e.x_root, my=e.y_root,
@@ -518,18 +634,17 @@ class App(object):
             self.body.pack_forget()
             self.foot.pack_forget()
             self.root.geometry("%dx%d" % (self.root.winfo_width(), self.head.winfo_height() + 3))
-            self._show_edges(False)
         else:
             self.foot.pack(fill="x", side="bottom")
             self.body.pack(fill="both", expand=True)
             h = max(MIN_H, getattr(self, "_h_before", None) or self.store.window.get("h") or st.DEFAULT_H)
             self.root.geometry("%dx%d" % (self.root.winfo_width(), h))
-            self._show_edges(True)
             self.refresh()
 
     def show_window(self):
         """두 번째로 실행했을 때 — 숨어 있던 창을 앞으로"""
         self.root.deiconify()
+        hide_from_taskbar(self.root)
         self.root.lift()
         self.root.attributes("-topmost", True)
         if not self.store.setting("topmost"):
@@ -618,6 +733,7 @@ class App(object):
         self.list_frame.update_idletasks()
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
         self.canvas.yview_moveto(top)
+        self._tag_tree(self.list_frame)
 
     def _date_style(self):
         return self.store.setting("date_mode"), bool(self.store.setting("weekday"))
@@ -995,6 +1111,7 @@ class App(object):
                 self.store.run_auto_archive()
                 self._build_window()
                 self.build_ui()
+                hide_from_taskbar(self.root)
         if replace_old_startup():
             msgs.append("윈도우를 켤 때 예전 메모 대신 이 앱이 열리도록 바꿨습니다.")
         if msgs:
