@@ -46,18 +46,22 @@ object SyncScheduler {
     private const val PERIODIC = "sticky-sync-periodic"
     private const val ONCE = "sticky-sync-once"
 
-    private fun netOnly() = Constraints.Builder()
-        .setRequiredNetworkType(NetworkType.CONNECTED)
+    private fun netOnly(ctx: Context) = Constraints.Builder()
+        .setRequiredNetworkType(
+            if (Settings.wifiOnly(ctx)) NetworkType.UNMETERED else NetworkType.CONNECTED
+        )
         .build()
 
     /** 앱이나 위젯이 살아날 때마다 불러도 된다. 이미 등록돼 있으면 그대로 둔다. */
-    fun ensurePeriodic(ctx: Context) {
+    fun ensurePeriodic(ctx: Context, replace: Boolean = false) {
         try {
             val req = PeriodicWorkRequestBuilder<SyncWorker>(30, TimeUnit.MINUTES)
-                .setConstraints(netOnly())
+                .setConstraints(netOnly(ctx))
                 .build()
+            // 설정이 바뀌어 조건을 고쳐야 할 때만 UPDATE, 평소엔 이미 있으면 그대로 둔다
+            val policy = if (replace) ExistingPeriodicWorkPolicy.UPDATE else ExistingPeriodicWorkPolicy.KEEP
             WorkManager.getInstance(ctx.applicationContext)
-                .enqueueUniquePeriodicWork(PERIODIC, ExistingPeriodicWorkPolicy.KEEP, req)
+                .enqueueUniquePeriodicWork(PERIODIC, policy, req)
         } catch (e: Exception) {
             // WorkManager 를 쓸 수 없는 상황이면 그냥 넘어간다
         }
@@ -72,7 +76,7 @@ object SyncScheduler {
             if (!DriveSync.connected(ctx)) return
             val req = OneTimeWorkRequestBuilder<SyncWorker>()
                 .setInitialDelay(delaySeconds, TimeUnit.SECONDS)
-                .setConstraints(netOnly())
+                .setConstraints(netOnly(ctx))
                 .build()
             WorkManager.getInstance(ctx.applicationContext)
                 .enqueueUniqueWork(ONCE, ExistingWorkPolicy.REPLACE, req)

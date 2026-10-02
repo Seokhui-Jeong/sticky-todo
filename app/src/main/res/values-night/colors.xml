@@ -12,7 +12,7 @@
     <color name="accent">#FF6AA3FF</color>
     <color name="overdue">#FFFF6B61</color>
 
-    <color name="widget_bg">#E61A1D21</color>
+    <color name="widget_bg">#FF1A1D21</color>
     <color name="widget_text">#FFE9EBEE</color>
     <color name="widget_muted">#FF979DA4</color>
     <color name="widget_divider">#33FFFFFF</color>

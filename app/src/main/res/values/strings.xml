@@ -44,4 +44,5 @@
     <string name="sync_never">아직 한 적 없음</string>
     <string name="sync_now">지금 동기화</string>
     <string name="sync_help">같은 구글 계정으로 연결한 기기끼리 할 일 목록이 자동으로 맞춰집니다. 목록은 드라이브의 앱 전용 숨김 공간에만 저장되며, 드라이브 화면에는 보이지 않고 다른 앱도 볼 수 없습니다.\n\n바꾼 내용은 몇 초 안에 올라가고, 다른 기기의 변경은 앱을 열 때·위젯이 갱신될 때·30분마다 받아옵니다. 폰이 절전 상태면 더 늦어질 수 있습니다.</string>
+    <string name="settings_title">설정</string>
 </resources>

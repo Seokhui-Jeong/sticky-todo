@@ -15,7 +15,7 @@
     <color name="overdue">#FFE0463E</color>
 
     <!-- 위젯 (라이트) -->
-    <color name="widget_bg">#F2FFFFFF</color>
+    <color name="widget_bg">#FFFFFFFF</color>
     <color name="widget_text">#FF22252A</color>
     <color name="widget_muted">#FF8B9198</color>
     <color name="widget_divider">#22000000</color>

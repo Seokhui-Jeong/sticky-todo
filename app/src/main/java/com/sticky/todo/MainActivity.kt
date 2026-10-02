@@ -88,9 +88,7 @@ class MainActivity : AppCompatActivity() {
         val menu = PopupMenu(this, anchor)
         menu.menu.add(0, 1, 0, getString(R.string.archive))
         menu.menu.add(0, 2, 1, getString(R.string.archive_done))
-        menu.menu.add(0, 3, 2, getString(R.string.widget_tap_title))
-        menu.menu.add(0, 4, 3, getString(R.string.spacing_title))
-        menu.menu.add(0, 5, 4, getString(R.string.sync_title))
+        menu.menu.add(0, 3, 2, getString(R.string.settings_title))
         menu.setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 1 -> {
@@ -108,61 +106,13 @@ class MainActivity : AppCompatActivity() {
                     true
                 }
                 3 -> {
-                    chooseWidgetTap()
-                    true
-                }
-                4 -> {
-                    chooseSpacing()
-                    true
-                }
-                5 -> {
-                    startActivity(Intent(this, SyncActivity::class.java))
+                    startActivity(Intent(this, SettingsActivity::class.java))
                     true
                 }
                 else -> false
             }
         }
         menu.show()
-    }
-
-    /** 위젯 빈 곳을 눌렀을 때 무엇을 할지 고른다 */
-    private fun chooseWidgetTap() {
-        val values = arrayOf(TodoRepo.TAP_ADD, TodoRepo.TAP_OPEN)
-        val labels = arrayOf(
-            getString(R.string.widget_tap_add),
-            getString(R.string.widget_tap_open)
-        )
-        val current = values.indexOf(TodoRepo.widgetTap(this)).coerceAtLeast(0)
-        AlertDialog.Builder(this)
-            .setTitle(R.string.widget_tap_title)
-            .setSingleChoiceItems(labels, current) { dialog, which ->
-                TodoRepo.setWidgetTap(this, values[which])
-                TodoWidget.refresh(this)
-                dialog.dismiss()
-            }
-            .setNegativeButton(R.string.cancel, null)
-            .show()
-    }
-
-    /** 위젯 줄 간격을 고른다. 고르는 즉시 위젯에 반영된다. */
-    private fun chooseSpacing() {
-        val labels = arrayOf(
-            "아주 좁게",
-            "좁게",
-            "보통 (기본)",
-            "넓게",
-            "아주 넓게"
-        )
-        val current = TodoRepo.widgetSpacing(this)
-        AlertDialog.Builder(this)
-            .setTitle(R.string.spacing_title)
-            .setSingleChoiceItems(labels, current) { dialog, which ->
-                TodoRepo.setWidgetSpacing(this, which)
-                TodoWidget.refresh(this)
-                dialog.dismiss()
-            }
-            .setNegativeButton(R.string.cancel, null)
-            .show()
     }
 }
 
@@ -208,7 +158,7 @@ class TaskAdapter(
         )
 
         val d = t.localDate()
-        holder.date.text = dateLabel(t)
+        holder.date.text = dateLabel(t, style = Settings.dateStyle(ctx))
         val colorRes = when {
             t.done -> R.color.done_text
             else -> when (Dates.state(d)) {

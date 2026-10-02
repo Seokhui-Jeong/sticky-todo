@@ -22,13 +22,23 @@ private class TodoFactory(private val ctx: Context) : RemoteViewsService.RemoteV
     private var items: List<Task> = emptyList()
     private var padDp: Int = TodoRepo.SPACING_PAD[TodoRepo.SPACING_DEFAULT]
     private var checkDp: Int = TodoRepo.SPACING_CHECK[TodoRepo.SPACING_DEFAULT]
+    private var textSp: Float = Settings.FONT_TEXT[Settings.FONT_DEFAULT]
+    private var smallSp: Float = Settings.FONT_SMALL[Settings.FONT_DEFAULT]
+    private var dateStyle: DateStyle = DateStyle.DEFAULT
 
     override fun onCreate() {}
 
     override fun onDataSetChanged() {
         // 위젯이 갱신될 때마다 기한 지난 완료 항목을 정리한다
         TodoRepo.runAutoArchive(ctx)
-        items = TodoRepo.sortedItems(ctx)
+        items = TodoRepo.sortedItems(ctx).let { all ->
+            if (Settings.hideDoneInWidget(ctx)) all.filter { !it.done } else all
+        }
+
+        val font = Settings.fontLevel(ctx)
+        textSp = Settings.FONT_TEXT[font]
+        smallSp = Settings.FONT_SMALL[font]
+        dateStyle = Settings.dateStyle(ctx)
 
         val level = TodoRepo.widgetSpacing(ctx)
         padDp = TodoRepo.SPACING_PAD[level]
@@ -82,7 +92,9 @@ private class TodoFactory(private val ctx: Context) : RemoteViewsService.RemoteV
         }
 
         val d = t.localDate()
-        rv.setTextViewText(R.id.item_date, dateLabel(t))
+        rv.setTextViewText(R.id.item_date, dateLabel(t, style = dateStyle))
+        rv.setTextViewTextSize(R.id.item_text, TypedValue.COMPLEX_UNIT_SP, textSp)
+        rv.setTextViewTextSize(R.id.item_date, TypedValue.COMPLEX_UNIT_SP, smallSp)
         val dateColor = when {
             t.done -> R.color.widget_muted
             else -> when (Dates.state(d)) {

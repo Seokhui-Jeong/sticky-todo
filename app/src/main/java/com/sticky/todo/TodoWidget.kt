@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
 
@@ -71,8 +72,21 @@ class TodoWidget : AppWidgetProvider() {
             } catch (e: Exception) {
                 0
             }
-            val showHeader = heightDp == 0 || heightDp >= HEADER_MIN_HEIGHT_DP
+            val showHeader = when (Settings.header(ctx)) {
+                Settings.HEADER_ALWAYS -> true
+                Settings.HEADER_HIDE -> false
+                else -> heightDp == 0 || heightDp >= HEADER_MIN_HEIGHT_DP
+            }
             val headerVisibility = if (showHeader) View.VISIBLE else View.GONE
+
+            // 배경 투명도 (둥근 모서리는 그대로)
+            rv.setInt(R.id.widget_bg, "setImageAlpha", Settings.opacityAlpha(ctx))
+
+            // 머리글 글자 크기
+            val font = Settings.fontLevel(ctx)
+            rv.setTextViewTextSize(R.id.widget_title, TypedValue.COMPLEX_UNIT_SP, Settings.FONT_TEXT[font])
+            rv.setTextViewTextSize(R.id.widget_count, TypedValue.COMPLEX_UNIT_SP, Settings.FONT_SMALL[font])
+            rv.setTextViewTextSize(R.id.widget_empty, TypedValue.COMPLEX_UNIT_SP, Settings.FONT_SMALL[font] + 1f)
             rv.setViewVisibility(R.id.widget_header, headerVisibility)
             rv.setViewVisibility(R.id.widget_divider, headerVisibility)
 
@@ -99,7 +113,7 @@ class TodoWidget : AppWidgetProvider() {
             rv.setOnClickPendingIntent(R.id.widget_title, openApp)
             rv.setOnClickPendingIntent(R.id.widget_count, openApp)
             rv.setOnClickPendingIntent(R.id.widget_add, addTask)
-            rv.setOnClickPendingIntent(R.id.widget_root, blankTap)
+            rv.setOnClickPendingIntent(R.id.widget_content, blankTap)
             rv.setOnClickPendingIntent(R.id.widget_empty, blankTap)
 
             rv.setTextViewText(

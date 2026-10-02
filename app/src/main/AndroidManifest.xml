@@ -42,6 +42,11 @@
             android:exported="false"
             android:label="@string/sync_title" />
 
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="false"
+            android:label="@string/settings_title" />
+
         <receiver
             android:name=".TodoWidget"
             android:exported="true">

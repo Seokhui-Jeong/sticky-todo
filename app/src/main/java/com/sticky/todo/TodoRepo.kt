@@ -221,9 +221,10 @@ object TodoRepo {
     // ── 보관함 ────────────────────────────────────────────
 
     /**
-     * 하루치 정리. 두 가지를 한다.
+     * 하루치 정리. 세 가지를 한다.
      *   1. 주기가 돌아온 반복 항목의 체크를 풀어준다
      *   2. 기한이 지난 완료 항목을 보관함으로 옮긴다 (반복 항목은 제외)
+     *   3. 설정에 따라 오래된 보관함 항목을 지운다
      * 보관한 개수를 돌려준다.
      */
     @Synchronized
@@ -248,7 +249,26 @@ object TodoRepo {
             items.removeAll(move.toSet())
         }
 
-        if (changed || move.isNotEmpty()) persist(ctx)
+        // 보관함 자동 비우기 (설정한 날수가 지난 것). 지운 기록을 남겨 다른 기기에서도 지워지게 한다.
+        var purged = false
+        val keepDays = Settings.archiveKeepDays(ctx)
+        if (keepDays > 0 && archive.isNotEmpty()) {
+            val cutoff = today.minusDays(keepDays.toLong())
+            val old = archive.filter { rec ->
+                val day = rec.archivedAt?.let {
+                    try { LocalDate.parse(it.substring(0, 10)) } catch (e: Exception) { null }
+                }
+                day != null && day.isBefore(cutoff)
+            }
+            if (old.isNotEmpty()) {
+                val now = System.currentTimeMillis()
+                old.forEach { bury(it.id, now) }
+                archive.removeAll(old.toSet())
+                purged = true
+            }
+        }
+
+        if (changed || move.isNotEmpty() || purged) persist(ctx)
         return move.size
     }
 

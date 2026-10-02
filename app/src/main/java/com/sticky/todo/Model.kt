@@ -5,6 +5,7 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 /** 반복 방식 */
@@ -108,10 +109,28 @@ data class Task(
 
 enum class DateState { NONE, PAST, TODAY, FUTURE }
 
+/**
+ * 날짜를 어떻게 보여줄지.
+ *   mode    : DATE(9/30) · DDAY(D-3) · BOTH(9/30 D-3)
+ *   weekday : 날짜 뒤에 요일 붙이기 9/30(수). D-day 만 보일 때는 붙이지 않는다.
+ */
+data class DateStyle(val mode: Int = DATE, val weekday: Boolean = false) {
+    companion object {
+        const val DATE = 0
+        const val DDAY = 1
+        const val BOTH = 2
+        val DEFAULT = DateStyle()
+    }
+}
+
 /** 목록 오른쪽에 보일 글자. 기한과 반복을 함께 담는다. */
-fun dateLabel(t: Task, today: LocalDate = LocalDate.now()): String {
+fun dateLabel(
+    t: Task,
+    today: LocalDate = LocalDate.now(),
+    style: DateStyle = DateStyle.DEFAULT
+): String {
     val d = t.localDate()
-    val base = if (d != null) Dates.format(d, today) else t.date
+    val base = if (d != null) Dates.label(d, today, style) else t.date
     val rep = when {
         !t.repeating() -> ""
         t.repeatMode == Repeat.WEEK -> "↻" + Repeat.weekdayText(t.repeatWeekdays, "")
@@ -187,6 +206,27 @@ object Dates {
             String.format("%02d.%d.%d", d.year % 100, d.monthValue, d.dayOfMonth)
         else
             String.format("%d/%d", d.monthValue, d.dayOfMonth)
+    }
+
+    /** 오늘 · D-3 · D+2 */
+    fun dday(d: LocalDate, today: LocalDate = LocalDate.now()): String {
+        val n = ChronoUnit.DAYS.between(today, d)
+        return when {
+            n == 0L -> "오늘"
+            n > 0 -> "D-$n"
+            else -> "D+${-n}"
+        }
+    }
+
+    /** 표시 설정에 맞춘 날짜 글자 */
+    fun label(d: LocalDate, today: LocalDate = LocalDate.now(), style: DateStyle = DateStyle.DEFAULT): String {
+        val plain = format(d, today) +
+            if (style.weekday) "(" + Repeat.SHORT[d.dayOfWeek.value - 1] + ")" else ""
+        return when (style.mode) {
+            DateStyle.DDAY -> dday(d, today)
+            DateStyle.BOTH -> "$plain ${dday(d, today)}"
+            else -> plain
+        }
     }
 
     /** 저장용 문자열: 해석되면 ISO, 아니면 원문 유지 */

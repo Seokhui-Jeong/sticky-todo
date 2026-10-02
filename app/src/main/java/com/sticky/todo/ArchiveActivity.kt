@@ -88,7 +88,7 @@ class ArchiveAdapter(
         holder.text.text = t.text.ifBlank { "(내용 없음)" }
 
         val mark = if (t.done) "완료" else "미완료"
-        val dateText = dateLabel(t)
+        val dateText = dateLabel(t, style = Settings.dateStyle(holder.itemView.context))
         holder.sub.text = listOf(mark, dateText).filter { it.isNotBlank() }.joinToString(" · ")
 
         holder.restore.setOnClickListener { onRestore(t) }
