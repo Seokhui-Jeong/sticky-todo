@@ -1,0 +1,112 @@
+name: Build Desktop
+
+# PC 앱(할 일 메모 Desktop)을 exe 로 만든다. desktop 폴더가 바뀔 때만 돈다.
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'desktop/**'
+      - '.github/workflows/build-desktop.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install PyInstaller
+        run: python -m pip install --upgrade pip pyinstaller
+
+      # 규칙이 폰 앱과 같은지 먼저 확인한다
+      - name: Test rules
+        run: python desktop/test_core.py
+
+      # 구글 연결 정보는 저장소에 두지 않고 Secret 에서 넣는다
+      - name: Fill OAuth client
+        env:
+          CID: ${{ secrets.DESKTOP_CLIENT_ID }}
+          CSECRET: ${{ secrets.DESKTOP_CLIENT_SECRET }}
+        run: |
+          if [ -z "$CID" ]; then
+            echo "::warning::DESKTOP_CLIENT_ID 시크릿이 없어 동기화 없이 만듭니다."
+          fi
+          python - <<'PY'
+          import json, os
+          with open("desktop/oauth_config.py", "w", encoding="utf-8") as f:
+              f.write("CLIENT_ID = %s\n" % json.dumps(os.environ.get("CID", "")))
+              f.write("CLIENT_SECRET = %s\n" % json.dumps(os.environ.get("CSECRET", "")))
+          PY
+
+      # 작업 관리자 등에 '할 일 메모 Desktop' 으로 보이게 하는 정보
+      - name: Version info
+        run: |
+          python - <<'PY'
+          n = int("${{ github.run_number }}")
+          tpl = u"""VSVersionInfo(
+            ffi=FixedFileInfo(filevers=(1, 0, 0, %d), prodvers=(1, 0, 0, %d)),
+            kids=[
+              StringFileInfo([StringTable('041204B0', [
+                StringStruct('CompanyName', 'sticky-todo'),
+                StringStruct('FileDescription', '할 일 메모 Desktop'),
+                StringStruct('FileVersion', '1.0.0.%d'),
+                StringStruct('InternalName', 'sticky-todo'),
+                StringStruct('OriginalFilename', 'sticky-todo.exe'),
+                StringStruct('ProductName', '할 일 메모 Desktop'),
+                StringStruct('ProductVersion', '1.0.0.%d')])]),
+              VarFileInfo([VarStruct('Translation', [0x0412, 1200])])
+            ]
+          )
+          """ % (n, n, n, n)
+          open("version.txt", "w", encoding="utf-8").write(tpl)
+          PY
+
+      - name: Build exe
+        run: |
+          python -m PyInstaller --noconfirm --onefile --windowed \
+            --name sticky-todo \
+            --icon desktop/icon.ico \
+            --add-data "desktop/icon.ico;." \
+            --version-file version.txt \
+            --paths desktop \
+            desktop/sticky_todo.py
+          ls -l dist
+
+      # 폰 APK 의 'latest' 주소를 건드리지 않도록 desktop 이라는 고정 릴리스에 올린다.
+      #   https://github.com/<계정>/<저장소>/releases/download/desktop/sticky-todo.exe
+      - name: Publish exe
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NOW=$(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M')
+          NOTES="빌드 #${{ github.run_number }} ($NOW) · 아래 sticky-todo.exe 를 받아 실행하세요. 설치 없이 바로 열립니다."
+          if gh release view desktop >/dev/null 2>&1; then
+            gh release upload desktop dist/sticky-todo.exe --clobber
+            gh release edit desktop --title "할 일 메모 Desktop ($NOW)" --notes "$NOTES" --latest=false
+          else
+            gh release create desktop dist/sticky-todo.exe --target "${{ github.sha }}" \
+              --title "할 일 메모 Desktop ($NOW)" --notes "$NOTES" --latest=false
+          fi
+
+      - name: Upload exe as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sticky-todo-exe
+          path: dist/sticky-todo.exe
+          if-no-files-found: error
+
+      - name: Clean up
+        if: always()
+        run: rm -f desktop/oauth_config.py version.txt

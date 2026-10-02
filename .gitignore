@@ -14,3 +14,10 @@
 /keystore/
 *.jks
 *.keystore
+
+# PC 앱: 직접 실행할 때 쓰는 구글 클라이언트 파일, 빌드 결과
+/desktop/oauth_client.json
+/desktop/__pycache__/
+/build/
+/dist/
+*.spec
