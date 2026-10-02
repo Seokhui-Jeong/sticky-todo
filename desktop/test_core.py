@@ -4,6 +4,12 @@ import datetime as dt
 import os
 import sys
 
+# 윈도우 콘솔(GitHub Actions 포함)은 기본 글자 체계가 한글을 못 찍는다
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+except Exception:
+    pass
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import todo_core as c
 
