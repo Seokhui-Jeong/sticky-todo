@@ -27,6 +27,10 @@ class TodoWidget : AppWidgetProvider() {
         TodoRepo.runAutoArchive(context)
         appWidgetIds.forEach { render(context, appWidgetManager, it) }
         appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetIds, R.id.widget_list)
+
+        // 위젯이 깨어난 김에 동기화도 한 번 (30분마다 시스템이 깨워준다)
+        SyncScheduler.ensurePeriodic(context)
+        SyncScheduler.soon(context, 2)
     }
 
     /** 사용자가 위젯 크기를 바꾸면 머리글을 보일지 다시 판단한다 */

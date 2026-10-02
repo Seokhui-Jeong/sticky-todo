@@ -8,6 +8,10 @@ import java.time.LocalDate
 /**
  * 할 일 저장소. SharedPreferences 안에 JSON 한 덩어리로 보관한다.
  * 앱 화면과 위젯이 같은 프로세스에서 이 객체를 함께 쓴다.
+ *
+ * 기기 간 동기화를 위해 두 가지를 더 들고 있다.
+ *   - 항목마다 마지막 수정 시각 (Task.updatedAt)
+ *   - 지운 항목의 기록 (deleted). 없으면 지운 게 다시 살아난다.
  */
 object TodoRepo {
 
@@ -16,6 +20,7 @@ object TodoRepo {
 
     private var items = mutableListOf<Task>()
     private var archive = mutableListOf<Task>()
+    private var deleted = mutableMapOf<String, Long>()
     private var seq = 0L
     private var loaded = false
 
@@ -29,9 +34,18 @@ object TodoRepo {
             items = readList(root.optJSONArray("items"))
             archive = readList(root.optJSONArray("archive"))
             seq = root.optLong("seq", 0L)
+            deleted = mutableMapOf()
+            root.optJSONObject("deleted")?.let { d ->
+                val keys = d.keys()
+                while (keys.hasNext()) {
+                    val k = keys.next()
+                    deleted[k] = d.optLong(k, 0L)
+                }
+            }
         } catch (e: Exception) {
             items = mutableListOf()
             archive = mutableListOf()
+            deleted = mutableMapOf()
             seq = 0L
         }
     }
@@ -53,8 +67,15 @@ object TodoRepo {
         val root = JSONObject()
         root.put("items", JSONArray().also { a -> items.forEach { a.put(it.toJson()) } })
         root.put("archive", JSONArray().also { a -> archive.forEach { a.put(it.toJson()) } })
+        root.put("deleted", JSONObject().also { o ->
+            deleted.forEach { (id, at) -> o.put(id, at) }
+        })
         root.put("seq", seq)
         prefs(ctx).edit().putString(KEY, root.toString()).apply()
+    }
+
+    private fun bury(id: String, at: Long = System.currentTimeMillis()) {
+        deleted[id] = at
     }
 
     // ── 설정 ──────────────────────────────────────────────
@@ -137,6 +158,7 @@ object TodoRepo {
             repeatWeekdays = repeatWeekdays,
             seq = seq
         )
+        t.touch()
         items.add(t)
         persist(ctx)
         return t
@@ -162,6 +184,7 @@ object TodoRepo {
             it.repeatDays = repeatDays.coerceAtLeast(0)
             it.repeatWeekdays = repeatWeekdays
             if (star != null) it.star = star
+            it.touch()
         }
         persist(ctx)
     }
@@ -172,6 +195,7 @@ object TodoRepo {
         items.firstOrNull { it.id == id }?.let {
             it.done = !it.done
             it.doneAt = if (it.done) Task.now() else null
+            it.touch()
         }
         persist(ctx)
     }
@@ -180,14 +204,17 @@ object TodoRepo {
     @Synchronized
     fun toggleStar(ctx: Context, id: String) {
         ensure(ctx)
-        items.firstOrNull { it.id == id }?.let { it.star = !it.star }
+        items.firstOrNull { it.id == id }?.let {
+            it.star = !it.star
+            it.touch()
+        }
         persist(ctx)
     }
 
     @Synchronized
     fun delete(ctx: Context, id: String) {
         ensure(ctx)
-        items.removeAll { it.id == id }
+        if (items.removeAll { it.id == id }) bury(id)
         persist(ctx)
     }
 
@@ -204,12 +231,18 @@ object TodoRepo {
         ensure(ctx)
 
         var changed = false
-        items.forEach { if (Rules.applyRepeat(it, today)) changed = true }
+        items.forEach {
+            if (Rules.applyRepeat(it, today)) {
+                it.touch()
+                changed = true
+            }
+        }
 
         val move = items.filter { Rules.shouldArchive(it, today) }
         if (move.isNotEmpty()) {
             move.forEach {
                 it.archivedAt = Task.now()
+                it.touch()
                 archive.add(0, it)
             }
             items.removeAll(move.toSet())
@@ -227,6 +260,7 @@ object TodoRepo {
         if (done.isEmpty()) return 0
         done.forEach {
             it.archivedAt = Task.now()
+            it.touch()
             archive.add(0, it)
         }
         items.removeAll(done.toSet())
@@ -244,6 +278,7 @@ object TodoRepo {
         rec.doneAt = null
         rec.archivedAt = null
         rec.seq = seq
+        rec.touch()
         items.add(rec)
         persist(ctx)
     }
@@ -251,14 +286,65 @@ object TodoRepo {
     @Synchronized
     fun removeArchived(ctx: Context, id: String) {
         ensure(ctx)
-        archive.removeAll { it.id == id }
+        if (archive.removeAll { it.id == id }) bury(id)
         persist(ctx)
     }
 
     @Synchronized
     fun clearArchive(ctx: Context) {
         ensure(ctx)
+        val now = System.currentTimeMillis()
+        archive.forEach { bury(it.id, now) }
         archive.clear()
         persist(ctx)
+    }
+
+    // ── 동기화용 입출구 ────────────────────────────────────
+
+    /** 지금 이 기기가 들고 있는 전부를 한 덩어리로 */
+    @Synchronized
+    fun snapshot(ctx: Context): SyncData {
+        ensure(ctx)
+        val all = ArrayList<Task>(items.size + archive.size)
+        items.forEach { all.add(it.copy()) }
+        archive.forEach { all.add(it.copy()) }
+        return SyncData(all, HashMap(deleted))
+    }
+
+    /**
+     * 병합 결과를 이 기기에 적용한다.
+     * 실제로 내용이 달라졌으면 true 를 돌려준다 (화면·위젯을 다시 그리기 위해).
+     */
+    @Synchronized
+    fun applyMerged(ctx: Context, data: SyncData): Boolean {
+        ensure(ctx)
+        val before = snapshotSignature()
+
+        val newItems = mutableListOf<Task>()
+        val newArchive = mutableListOf<Task>()
+        for (t in data.tasks) {
+            if (t.archivedAt.isNullOrBlank()) newItems.add(t) else newArchive.add(t)
+        }
+        newArchive.sortByDescending { it.archivedAt ?: "" }
+
+        items = newItems
+        archive = newArchive
+        deleted = HashMap(data.deleted)
+        seq = (items.maxOfOrNull { it.seq } ?: 0L)
+            .coerceAtLeast(archive.maxOfOrNull { it.seq } ?: 0L)
+            .coerceAtLeast(seq)
+
+        persist(ctx)
+        return before != snapshotSignature()
+    }
+
+    /** 내용이 바뀌었는지만 가볍게 비교하기 위한 지문 */
+    private fun snapshotSignature(): String {
+        val sb = StringBuilder()
+        (items + archive).sortedBy { it.id }.forEach {
+            sb.append(it.id).append(':').append(it.updatedAt).append(';')
+        }
+        sb.append('#').append(deleted.keys.sorted().joinToString(","))
+        return sb.toString()
     }
 }

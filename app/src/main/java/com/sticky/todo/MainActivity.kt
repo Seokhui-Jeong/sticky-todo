@@ -50,12 +50,17 @@ class MainActivity : AppCompatActivity() {
             startActivity(TaskEditActivity.add(this))
         }
         findViewById<ImageView>(R.id.menu).setOnClickListener { v -> showMenu(v) }
+
+        // 앱을 열지 않아도 도는 주기 동기화를 등록해 둔다 (이미 있으면 그대로)
+        SyncScheduler.ensurePeriodic(this)
     }
 
     override fun onResume() {
         super.onResume()
         TodoRepo.runAutoArchive(this)
         reload()
+        // 열자마자 한 번 맞춰본다
+        SyncScheduler.soon(this, 1)
     }
 
     private fun reload() {
@@ -65,6 +70,7 @@ class MainActivity : AppCompatActivity() {
         val left = items.count { !it.done }
         countView.text = if (left > 0) left.toString() else ""
         TodoWidget.refresh(this)
+        SyncScheduler.soon(this)
     }
 
     private fun confirmDelete(t: Task) {
@@ -84,6 +90,7 @@ class MainActivity : AppCompatActivity() {
         menu.menu.add(0, 2, 1, getString(R.string.archive_done))
         menu.menu.add(0, 3, 2, getString(R.string.widget_tap_title))
         menu.menu.add(0, 4, 3, getString(R.string.spacing_title))
+        menu.menu.add(0, 5, 4, getString(R.string.sync_title))
         menu.setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 1 -> {
@@ -106,6 +113,10 @@ class MainActivity : AppCompatActivity() {
                 }
                 4 -> {
                     chooseSpacing()
+                    true
+                }
+                5 -> {
+                    startActivity(Intent(this, SyncActivity::class.java))
                     true
                 }
                 else -> false

@@ -44,9 +44,16 @@ data class Task(
     var repeatWeekdays: Int = 0,
     var seq: Long = 0,
     var doneAt: String? = null,
-    var archivedAt: String? = null
+    var archivedAt: String? = null,
+    /** 마지막으로 바뀐 시각(밀리초). 기기 간 병합에서 누가 최신인지 가리는 기준이다. */
+    var updatedAt: Long = 0L
 ) {
     fun localDate(): LocalDate? = Dates.parse(date)
+
+    /** 내용을 바꾼 직후 호출한다 */
+    fun touch(at: Long = System.currentTimeMillis()) {
+        updatedAt = at
+    }
 
     /** 실제로 반복이 걸려 있는가 */
     fun repeating(): Boolean = when (repeatMode) {
@@ -65,6 +72,7 @@ data class Task(
         put("repeatDays", repeatDays)
         put("repeatWeekdays", repeatWeekdays)
         put("seq", seq)
+        put("updatedAt", updatedAt)
         // JSONObject.NULL 로 넣으면 다시 읽을 때 "null" 이라는 글자가 되어버린다
         put("doneAt", doneAt ?: "")
         put("archivedAt", archivedAt ?: "")
@@ -87,6 +95,7 @@ data class Task(
                 repeatDays = days,
                 repeatWeekdays = o.optInt("repeatWeekdays", 0),
                 seq = o.optLong("seq", 0L),
+                updatedAt = o.optLong("updatedAt", 0L),
                 doneAt = o.optString("doneAt", "").ifEmpty { null },
                 archivedAt = o.optString("archivedAt", "").ifEmpty { null }
             )

@@ -63,6 +63,7 @@ class TaskEditActivity : AppCompatActivity() {
                 TodoRepo.runAutoArchive(this)
             }
             TodoWidget.refresh(this)
+            SyncScheduler.soon(this)
             finish()
             overridePendingTransition(0, 0)
             return
@@ -259,6 +260,7 @@ class TaskEditActivity : AppCompatActivity() {
 
     private fun done() {
         TodoWidget.refresh(this)
+        SyncScheduler.soon(this)
         setResult(RESULT_OK)
         finish()
     }

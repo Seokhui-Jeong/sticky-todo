@@ -2,6 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <application
         android:allowBackup="true"
@@ -34,6 +36,11 @@
             android:name=".ArchiveActivity"
             android:exported="false"
             android:label="@string/archive" />
+
+        <activity
+            android:name=".SyncActivity"
+            android:exported="false"
+            android:label="@string/sync_title" />
 
         <receiver
             android:name=".TodoWidget"

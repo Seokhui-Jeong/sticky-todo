@@ -52,6 +52,7 @@ class ArchiveActivity : AppCompatActivity() {
     }
 
     private fun reload() {
+        SyncScheduler.soon(this)
         val items = TodoRepo.archived(this)
         adapter.submit(items)
         emptyView.visibility = if (items.isEmpty()) View.VISIBLE else View.GONE

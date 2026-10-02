@@ -72,4 +72,8 @@ dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.recyclerview:recyclerview:1.3.2")
+    // 구글 로그인 (드라이브 접근 권한을 받기 위해)
+    implementation("com.google.android.gms:play-services-auth:21.2.0")
+    // 앱을 열지 않아도 도는 백그라운드 동기화
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
 }
