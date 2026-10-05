@@ -134,6 +134,29 @@ def replace_old_startup():
     return True
 
 
+# ── 저장해 둔 창 위치가 지금 화면에 보이는가 ──────────────
+
+def visible_on_monitor(x, y, w, h):
+    """머리글 부분이 어느 모니터에든 걸쳐 보이면 True, 아니면 False.
+    윈도우가 아니라 알 수 없으면 None.
+    (보조 모니터는 주 모니터 밖 좌표 — 음수거나 주 모니터 폭보다 큼 — 에 있으므로
+     주 모니터 크기만으로 판단하면 보조 모니터에 둔 창이 엉뚱한 곳으로 끌려온다)"""
+    try:
+        import ctypes
+        from ctypes import wintypes
+        user32 = ctypes.windll.user32
+    except Exception:
+        return None
+    try:
+        user32.MonitorFromRect.restype = wintypes.HANDLE
+        user32.MonitorFromRect.argtypes = [ctypes.POINTER(wintypes.RECT), wintypes.DWORD]
+        head = wintypes.RECT(int(x) + 20, int(y), int(x) + max(40, int(w) - 20), int(y) + 24)
+        MONITOR_DEFAULTTONULL = 0
+        return bool(user32.MonitorFromRect(ctypes.byref(head), MONITOR_DEFAULTTONULL))
+    except Exception:
+        return None
+
+
 # ── 작업 표시줄에서 숨기기 ────────────────────────────────
 
 def hide_from_taskbar(root):
@@ -301,6 +324,7 @@ class App(object):
         self.build_ui()
 
         self.root.after(10, lambda: hide_from_taskbar(self.root))
+        self.root.after(60, self._restore_position)
         self.root.after(200, self._first_run)
         self.root.after(150, self._pump)
         self.root.after(TICK_MS, self._tick)
@@ -330,13 +354,24 @@ class App(object):
         width = max(MIN_W, int(w.get("w") or st.DEFAULT_W))
         height = max(MIN_H, int(w.get("h") or st.DEFAULT_H))
         x, y = w.get("x"), w.get("y")
+        self._keep_saved_pos = False
+        if x is not None and y is not None:
+            x, y = int(x), int(y)
+            on = visible_on_monitor(x, y, width, height)
+            if on is None:
+                # 윈도우가 아닐 때: 주 화면 밖으로 나가지 않게만
+                x = max(0, min(x, r.winfo_screenwidth() - 60))
+                y = max(0, min(y, r.winfo_screenheight() - 40))
+            elif not on:
+                # 그 모니터가 지금 없다 (떼어냈거나 아직 인식 전).
+                # 기본 자리에 띄우되, 저장된 자리는 지우지 않는다 — 모니터를 다시 꽂으면 돌아간다.
+                self._keep_saved_pos = True
+                x = y = None
         if x is None or y is None:
             x = r.winfo_screenwidth() - width - 60
             y = 80
-        # 모니터를 떼어냈을 때 화면 밖에 숨지 않게
-        x = max(0, min(int(x), r.winfo_screenwidth() - 60))
-        y = max(0, min(int(y), r.winfo_screenheight() - 40))
-        r.geometry("%dx%d+%d+%d" % (width, height, x, y))
+        self._start_geometry = "%dx%d+%d+%d" % (width, height, x, y)
+        r.geometry(self._start_geometry)
         self.apply_window_settings()
 
     def apply_window_settings(self):
@@ -465,7 +500,7 @@ class App(object):
 
     def _drag_end(self, _e):
         self._drag = None
-        self.save_window()
+        self.save_window(moved=True)
 
     # 창 가장자리 크기 조절.
     # 예전에는 가장자리에 얇은 틀을 깔았는데, 그 틀이 눈에 보였다.
@@ -607,16 +642,28 @@ class App(object):
 
     def _resize_end(self, _e=None):
         self._rs = None
-        self.save_window()
+        self.save_window(moved=True)
 
-    def save_window(self):
-        if self.collapsed:
-            self.store.window.update(x=self.root.winfo_x(), y=self.root.winfo_y(),
-                                     w=self.root.winfo_width())
-        else:
-            self.store.window = dict(x=self.root.winfo_x(), y=self.root.winfo_y(),
-                                     w=self.root.winfo_width(), h=self.root.winfo_height())
+    def save_window(self, moved=False):
+        if moved:
+            self._keep_saved_pos = False
+        new = dict(w=self.root.winfo_width())
+        if not self.collapsed:
+            new["h"] = self.root.winfo_height()
+        if not getattr(self, "_keep_saved_pos", False):
+            new.update(x=self.root.winfo_x(), y=self.root.winfo_y())
+        self.store.window.update(new)
         self.store.save()
+
+    def _restore_position(self):
+        """창이 화면에 뜬 뒤 한 번 더 제자리로. (윈도우에서 테두리 없는 창은
+        처음 띄울 때 지정한 위치를 무시하는 경우가 있어 확실히 해 둔다)"""
+        try:
+            want = self._start_geometry.split("+", 1)[1]
+            if "%d+%d" % (self.root.winfo_x(), self.root.winfo_y()) != want:
+                self.root.geometry("+" + want)
+        except (tk.TclError, AttributeError, IndexError):
+            pass
 
     def reset_size(self):
         if self.collapsed:
@@ -624,7 +671,7 @@ class App(object):
         x = max(0, min(self.root.winfo_x(), self.root.winfo_screenwidth() - st.DEFAULT_W))
         y = max(0, min(self.root.winfo_y(), self.root.winfo_screenheight() - st.DEFAULT_H))
         self.root.geometry("%dx%d+%d+%d" % (st.DEFAULT_W, st.DEFAULT_H, x, y))
-        self.root.after(50, self.save_window)
+        self.root.after(50, lambda: self.save_window(moved=True))
 
     def toggle_collapse(self):
         self.collapsed = not self.collapsed
