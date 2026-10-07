@@ -225,6 +225,69 @@ def claim_single_instance(on_show):
     return True
 
 
+# ── 트레이 아이콘 ─────────────────────────────────────────
+
+class Tray(object):
+    """작업 표시줄 오른쪽 알림 영역(^)의 작은 아이콘.
+    누르면 메모를 앞으로, 오른쪽 클릭하면 메뉴.
+    pystray 가 없으면(직접 .py 로 돌릴 때 등) 조용히 꺼진다."""
+
+    def __init__(self, app):
+        self.app = app
+        self.icon = None
+        try:
+            import pystray
+            from PIL import Image
+        except Exception:
+            return
+        try:
+            image = Image.open(resource("icon.ico"))
+            image.load()
+        except Exception:
+            try:
+                image = Image.new("RGBA", (64, 64), (59, 125, 234, 255))
+            except Exception:
+                return
+
+        def post(kind):
+            # 이 함수들은 트레이 쪽 스레드에서 불린다 → 화면 스레드로 넘긴다
+            return lambda icon, item: app.events.put((kind,))
+
+        M = pystray.MenuItem
+        menu = pystray.Menu(
+            M("메모 열기", post("show"), default=True),
+            M("트레이로 숨기기", post("hide"), visible=lambda item: not app.hidden),
+            pystray.Menu.SEPARATOR,
+            M("지금 동기화", post("sync"), visible=lambda item: app.account.connected()),
+            M("보관함", post("archive")),
+            M("설정", post("settings")),
+            pystray.Menu.SEPARATOR,
+            M("종료", post("quit")),
+        )
+        try:
+            self.icon = pystray.Icon("StickyTodo", image, APP_TITLE, menu)
+            threading.Thread(target=self.icon.run, daemon=True).start()
+        except Exception:
+            self.icon = None
+
+    def available(self):
+        return self.icon is not None
+
+    def notify(self, text):
+        try:
+            if self.icon is not None:
+                self.icon.notify(text, APP_TITLE)
+        except Exception:
+            pass
+
+    def stop(self):
+        try:
+            if self.icon is not None:
+                self.icon.stop()
+        except Exception:
+            pass
+
+
 # ── 작은 위젯들 ───────────────────────────────────────────
 
 class CheckBox(tk.Canvas):
@@ -319,6 +382,8 @@ class App(object):
         self.settings_win = None
         self.archive_win = None
         self.edit_win = None
+        self.hidden = False              # 트레이로 숨긴 상태
+        self.tray = Tray(self)
 
         self._build_window()
         self.build_ui()
@@ -411,6 +476,8 @@ class App(object):
         self.sync_lbl.bind("<Button-1>", lambda e: self.open_settings())
 
         self._head_btn(head, "✕", self.quit, p["over"])
+        if self.tray.available():
+            self._head_btn(head, "–", self.minimize, p["muted"])
         self._head_btn(head, "▾", self.toggle_collapse, p["muted"])
         self._head_btn(head, "≡", self.show_menu, p["muted"])
 
@@ -645,6 +712,9 @@ class App(object):
         self.save_window(moved=True)
 
     def save_window(self, moved=False):
+        if self.hidden:
+            self.store.save()
+            return
         if moved:
             self._keep_saved_pos = False
         new = dict(w=self.root.winfo_width())
@@ -654,6 +724,15 @@ class App(object):
             new.update(x=self.root.winfo_x(), y=self.root.winfo_y())
         self.store.window.update(new)
         self.store.save()
+
+    def _restore_saved_spot(self):
+        """숨겼다 다시 띄울 때 원래 자리로"""
+        w = self.store.window
+        try:
+            if w.get("x") is not None and w.get("y") is not None:
+                self.root.geometry("+%d+%d" % (int(w["x"]), int(w["y"])))
+        except (tk.TclError, ValueError):
+            pass
 
     def _restore_position(self):
         """창이 화면에 뜬 뒤 한 번 더 제자리로. (윈도우에서 테두리 없는 창은
@@ -688,10 +767,29 @@ class App(object):
             self.root.geometry("%dx%d" % (self.root.winfo_width(), h))
             self.refresh()
 
+    def minimize(self):
+        """트레이로 숨긴다. 알림 영역 아이콘을 누르면 다시 나온다."""
+        if not self.tray.available():
+            return
+        self.commit_focused()
+        try:
+            self.save_window()
+        except tk.TclError:
+            pass
+        self.hidden = True
+        self.root.withdraw()
+        if not self.store.setting("tray_hint_shown"):
+            self.store.set_setting("tray_hint_shown", True)
+            self.tray.notify("메모를 트레이로 숨겼습니다. 작업 표시줄 오른쪽 ^ 의 아이콘을 누르면 다시 열립니다.")
+
     def show_window(self):
-        """두 번째로 실행했을 때 — 숨어 있던 창을 앞으로"""
+        """트레이 아이콘을 누르거나 두 번째로 실행했을 때 — 숨어 있던 창을 앞으로"""
+        was_hidden = self.hidden
+        self.hidden = False
         self.root.deiconify()
         hide_from_taskbar(self.root)
+        if was_hidden:
+            self.root.after(30, self._restore_saved_spot)
         self.root.lift()
         self.root.attributes("-topmost", True)
         if not self.store.setting("topmost"):
@@ -705,6 +803,8 @@ class App(object):
         m.add_command(label="완료 항목 모두 보관", command=self.archive_all_done)
         m.add_separator()
         m.add_command(label="설정…", command=self.open_settings)
+        if self.tray.available():
+            m.add_command(label="트레이로 숨기기", command=self.minimize)
         if self.account.connected():
             m.add_command(label="지금 동기화", command=lambda: self.request_sync(0))
         m.add_separator()
@@ -1124,6 +1224,17 @@ class App(object):
                         done(ok, msg)
                 elif kind == "show":
                     self.show_window()
+                elif kind == "hide":
+                    self.minimize()
+                elif kind == "sync":
+                    self.request_sync(0)
+                elif kind == "archive":
+                    self.open_archive()
+                elif kind == "settings":
+                    self.open_settings()
+                elif kind == "quit":
+                    self.quit()
+                    return
         except queue.Empty:
             pass
         self.root.after(150, self._pump)
@@ -1179,6 +1290,7 @@ class App(object):
             t = threading.Thread(target=lambda: ds.sync_once(self.account, snap), daemon=True)
             t.start()
             t.join(10)
+        self.tray.stop()
         self.root.destroy()
 
 
@@ -1516,7 +1628,9 @@ class SettingsWindow(Popup):
         self.box = self.scroller(self.win)
 
         self.section("창")
-        self.toggle("항상 위에 표시", "", lambda: s.setting("topmost"), self._set_topmost)
+        self.pick("창 순서", ["항상 앞 (기본)", "다른 창과 순서 바뀜"],
+                  lambda: 0 if s.setting("topmost") else 1,
+                  lambda i: self._set_topmost(i == 0))
         self.choice("창 불투명도", st.OPACITY_LABELS, "opacity", self._window_changed)
         self.choice("테마", st.THEME_LABELS, "theme", self._look_changed)
         self.choice("글자 크기", st.FONT_LABELS, "font", self._look_changed)
@@ -1564,24 +1678,32 @@ class SettingsWindow(Popup):
         Switch(row, self.pal, bool(get()), set_, self.pal["bg"]).pack(side="right")
 
     def choice(self, title, labels, key, after):
-        p = self.pal
+        """설정 값(번호)을 고르는 줄"""
         s = self.app.store
+
+        def set_(i):
+            s.set_setting(key, i)
+            after()
+
+        self.pick(title, labels, lambda: s._level(key, labels), set_)
+
+    def pick(self, title, labels, get, set_):
+        p = self.pal
         row = self._row(title, "")
-        cur = s._level(key, labels)
+        cur = max(0, min(len(labels) - 1, int(get())))
         val = tk.Label(row, text=labels[cur] + "  ▾", bg=p["button"], fg=p["text"],
                        font=self.app.font_small, cursor="hand2", padx=8, pady=3)
         val.pack(side="right")
 
-        def pick(i):
-            s.set_setting(key, i)
+        def choose(i):
             val.configure(text=labels[i] + "  ▾")
-            after()
+            set_(i)
 
         def popup(e):
             m = tk.Menu(self.win, tearoff=0, font=self.app.font_small)
-            v = tk.IntVar(value=s._level(key, labels))
+            v = tk.IntVar(value=int(get()))
             for i, lab in enumerate(labels):
-                m.add_radiobutton(label=lab, variable=v, value=i, command=lambda i=i: pick(i))
+                m.add_radiobutton(label=lab, variable=v, value=i, command=lambda i=i: choose(i))
             try:
                 m.tk_popup(e.x_root, e.y_root)
             finally:

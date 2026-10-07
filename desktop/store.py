@@ -58,6 +58,7 @@ DEFAULT_SETTINGS = {
     "date_mode": core.DATE_PLAIN,
     "weekday": False,
     "archive_keep": 0,
+    "tray_hint_shown": False,
 }
 
 DEFAULT_W, DEFAULT_H = 300, 380

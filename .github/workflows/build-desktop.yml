@@ -27,8 +27,9 @@ jobs:
         with:
           python-version: '3.12'
 
+      # pystray + pillow: 작업 표시줄 알림 영역(^)의 트레이 아이콘
       - name: Install PyInstaller
-        run: python -m pip install --upgrade pip pyinstaller
+        run: python -m pip install --upgrade pip pyinstaller pystray pillow
 
       # 규칙이 폰 앱과 같은지 먼저 확인한다
       - name: Test rules
@@ -81,6 +82,7 @@ jobs:
             --add-data "desktop/icon.ico;." \
             --version-file version.txt \
             --paths desktop \
+            --hidden-import pystray._win32 \
             desktop/sticky_todo.py
           ls -l dist
 
