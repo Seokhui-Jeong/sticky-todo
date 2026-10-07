@@ -110,3 +110,7 @@ Actions 화면에서 빨간 X 가 난 단계를 펼치면 원인이 나옵니다
 | `No such file or directory: ./gradlew` | 워크플로가 `gradle` 대신 `./gradlew` 를 부르고 있는 경우. 이 저장소의 `build-apk.yml` 을 그대로 쓰면 됩니다 |
 | `Failed to find package 'tools'` | `android-actions/setup-android` 를 쓸 때 나는 오류. 지금 워크플로에서는 그 액션을 뺐습니다 |
 | `SDK location not found` | `local.properties` 를 실수로 올린 경우. 저장소에서 지우세요 |
+
+---
+
+[개인정보처리방침](PRIVACY.md)
