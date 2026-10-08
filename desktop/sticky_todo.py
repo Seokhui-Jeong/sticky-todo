@@ -1373,6 +1373,10 @@ class EditDialog(Popup):
         t = app.store.find(tid) if tid else None
         self.t = t
         p = self.pal
+        # 단추 줄을 먼저 아래에 붙인다. 나중에 붙이면 반복 설정으로 내용이 길어질 때
+        # 창 밖으로 밀려나 보이지 않는다.
+        brow = tk.Frame(self.win, bg=p["bg"])
+        brow.pack(fill="x", side="bottom", padx=16, pady=(0, 14))
         f = tk.Frame(self.win, bg=p["bg"])
         f.pack(fill="both", expand=True, padx=16, pady=14)
 
@@ -1443,8 +1447,6 @@ class EditDialog(Popup):
         self._paint_mode()
 
         # 단추
-        brow = tk.Frame(self.win, bg=p["bg"])
-        brow.pack(fill="x", side="bottom", padx=16, pady=(0, 14))
         flat_button(brow, "저장", self.save, p, fg="white", bg=p["accent"],
                     font=app.font_title).pack(side="right")
         flat_button(brow, "취소", self.close, p, font=app.font).pack(side="right", padx=6)
@@ -1452,6 +1454,7 @@ class EditDialog(Popup):
             flat_button(brow, "삭제", self.delete, p, fg=p["over"], font=app.font).pack(side="left")
 
         self.win.bind("<Return>", lambda e: self.save())
+        self._fit()
         self.text.focus_set()
 
     def _toggle_star(self):
@@ -1484,6 +1487,8 @@ class EditDialog(Popup):
         self.days_row.pack_forget()
         self.week_row.pack_forget()
         self.help.pack_forget()
+        # 안을 다 비운 프레임은 예전 크기를 붙들고 있어서, 1px 로 줄여 둔다
+        self.detail.configure(height=1)
         if self.mode in (core.DUE, core.DONE):
             self.days_row.pack(anchor="w", pady=(2, 4))
             self.help.configure(text=(
@@ -1498,6 +1503,23 @@ class EditDialog(Popup):
                 b.configure(bg=p["accent"] if on else p["button"], fg="white" if on else p["text"])
             self.help.configure(text="정해둔 요일마다 돌아옵니다. 반복 항목은 보관함으로 가지 않습니다.")
             self.help.pack(anchor="w")
+        self._fit()
+
+    def _fit(self):
+        """내용이 다 보이도록 창 높이를 맞춘다 (반복 설정·글자 크기에 따라 달라진다)"""
+        if not hasattr(self, "help"):
+            return
+        try:
+            w = self.win
+            w.update_idletasks()
+            width = max(350, w.winfo_reqwidth())
+            height = w.winfo_reqheight()
+            x, y = w.winfo_x(), w.winfo_y()
+            # 화면 아래로 넘치면 위로 올린다
+            y = max(0, min(y, w.winfo_screenheight() - height - 60))
+            w.geometry("%dx%d+%d+%d" % (width, height, x, y))
+        except tk.TclError:
+            pass
 
     def save(self):
         text = self.text.get().strip()
