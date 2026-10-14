@@ -56,16 +56,18 @@ jobs:
         with:
           gradle-version: '8.7'
 
+      # 배포용(release) 빌드: 쓰지 않는 코드·리소스를 걷어내고 디버깅 기능을 뺀다.
       # 이 저장소의 gradlew 는 래퍼 jar 없이 도는 셸 스크립트다.
       # gradle 이 이미 깔려 있으면 그쪽으로 넘어간다.
-      - name: Build debug APK
+      - name: Build release APK
         run: |
           if [ -f ./gradlew ]; then
             chmod +x ./gradlew
-            ./gradlew assembleDebug --no-daemon --stacktrace
+            ./gradlew assembleRelease --no-daemon --stacktrace
           else
-            gradle assembleDebug --no-daemon --stacktrace
+            gradle assembleRelease --no-daemon --stacktrace
           fi
+          ls -l app/build/outputs/apk/release/
 
       # 폰에서 바로 받을 수 있게 Releases 에 올린다.
       # 항상 같은 이름(todo-widget.apk)으로 올리므로 아래 주소가 늘 최신 APK 를 가리킨다.
@@ -74,12 +76,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp app/build/outputs/apk/debug/app-debug.apk todo-widget.apk
+          cp app/build/outputs/apk/release/app-release.apk todo-widget.apk
+          SIZE=$(du -k todo-widget.apk | cut -f1)
           TAG="build-${{ github.run_number }}"
           NOW=$(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M')
           gh release create "$TAG" todo-widget.apk \
             --title "할 일 위젯 ($NOW)" \
-            --notes "빌드 #${{ github.run_number }} · 아래 todo-widget.apk 를 눌러 바로 설치하세요." \
+            --notes "빌드 #${{ github.run_number }} · ${SIZE} KB · 아래 todo-widget.apk 를 눌러 바로 설치하세요." \
             --latest
 
       # 압축된 형태로도 남겨둔다 (PC 에서 받을 때용)
@@ -87,8 +90,16 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: todo-widget-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
+
+      # 줄인 코드의 이름표. 나중에 오류 기록을 원래 이름으로 되돌려 볼 때 쓴다 (앱에는 안 들어감)
+      - name: Upload R8 mapping
+        uses: actions/upload-artifact@v4
+        with:
+          name: r8-mapping
+          path: app/build/outputs/mapping/release/mapping.txt
+          if-no-files-found: ignore
 
       - name: Upload build reports on failure
         if: failure()
