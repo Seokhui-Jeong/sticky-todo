@@ -32,6 +32,10 @@ android {
         targetSdk = 34
         versionCode = buildNumber
         versionName = "1.$buildNumber"
+
+        // 화면 글자는 한국어뿐이다. 라이브러리(AppCompat, 구글 로그인 등)에 딸려 오는
+        // 수십 개 언어의 번역은 넣지 않는다. (기본 영어는 항상 남는다)
+        resourceConfigurations += listOf("ko")
     }
 
     buildTypes {
@@ -40,8 +44,16 @@ android {
                 signingConfig = signingConfigs.getByName("app")
             }
         }
+        // 배포용. 개발용(debug)과 달리
+        //   - 쓰지 않는 코드와 리소스를 걷어내고 (R8 / shrinkResources)
+        //   - 남은 코드도 짧게 줄이고 최적화하며
+        //   - 디버깅 연결을 막는다 (debuggable = false)
+        // 서명 키는 같아서 기존에 깔린 앱 위에 그대로 업데이트된다.
+        // 구글 로그인도 같은 키 지문(SHA-1)을 쓰므로 그대로 된다.
         getByName("release") {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            isDebuggable = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -52,6 +64,25 @@ android {
                 signingConfigs.getByName("debug")
             }
         }
+    }
+
+    // 앱 안에 넣을 필요 없는 부속 파일 (라이브러리 버전 표, 디버거용 파일 등)
+    packaging {
+        resources {
+            excludes += listOf(
+                "META-INF/*.version",
+                "META-INF/*.kotlin_module",
+                "kotlin/**",
+                "DebugProbesKt.bin",
+                "kotlin-tooling-metadata.json",
+            )
+        }
+    }
+
+    // 구글 플레이용 의존성 정보 블록. 직접 배포하므로 필요 없다.
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
     }
 
     // 일부 CI 설정은 `gradlew build` 로 lint 까지 돌린다.

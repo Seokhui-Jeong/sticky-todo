@@ -37,6 +37,12 @@ object DriveSync {
     private const val K_LAST_MSG = "sync_last_msg"
     private const val K_LAST_OK = "sync_last_ok"
 
+    // 드라이브 파일을 마지막으로 맞췄을 때의 상태.
+    // 다음 동기화 때 드라이브 파일의 내용 지문(md5)이 이것과 같으면 내려받지 않는다.
+    private const val K_FILE_ID = "sync_file_id"
+    private const val K_HASH = "sync_hash"
+    private const val K_SIG = "sync_sig"
+
     // ── 로그인 ────────────────────────────────────────────
 
     private fun options(): GoogleSignInOptions =
@@ -61,6 +67,23 @@ object DriveSync {
     fun lastSyncAt(ctx: Context): Long = prefs(ctx).getLong(K_LAST_AT, 0L)
     fun lastMessage(ctx: Context): String = prefs(ctx).getString(K_LAST_MSG, "") ?: ""
     fun lastOk(ctx: Context): Boolean = prefs(ctx).getBoolean(K_LAST_OK, false)
+
+    /** 계정을 새로 연결하거나 끊을 때 부른다. 다음 동기화는 처음부터 전부 받는다. */
+    fun forgetSyncState(ctx: Context) {
+        prefs(ctx).edit().remove(K_FILE_ID).remove(K_HASH).remove(K_SIG).apply()
+    }
+
+    private fun saveSyncState(ctx: Context, fileId: String, hash: String?, sig: String) {
+        if (hash.isNullOrEmpty()) {
+            forgetSyncState(ctx)   // 지문을 모르면 다음번엔 한 번 내려받는다
+            return
+        }
+        prefs(ctx).edit()
+            .putString(K_FILE_ID, fileId)
+            .putString(K_HASH, hash)
+            .putString(K_SIG, sig)
+            .apply()
+    }
 
     private fun record(ctx: Context, r: SyncResult): SyncResult {
         prefs(ctx).edit()
@@ -101,29 +124,60 @@ object DriveSync {
                 return record(app, SyncResult(false, "드라이브 조회 실패 (${found.code}) ${brief(found.body)}"))
             }
 
-            val fileId = firstFileId(found.body)
+            val remoteFile = firstFile(found.body)
+            val local = TodoRepo.snapshot(app)
+            val localSig = local.signature()
 
+            // ── 빠른 길: 드라이브 파일 내용이 지난번 그대로라면 내려받지 않는다 ──
+            // 지난번에 맞춘 뒤로 다른 기기가 바꾼 게 없다는 뜻이고, 그 내용은
+            // 이미 이 기기 목록에 다 들어 있다. 목록 조회 한 번(수백 바이트)으로 끝난다.
+            val p = prefs(app)
+            val knownId = p.getString(K_FILE_ID, null)
+            val knownHash = p.getString(K_HASH, null)
+            val knownSig = p.getString(K_SIG, null)
+            if (remoteFile != null && remoteFile.id == knownId && knownSig != null &&
+                !remoteFile.hash.isNullOrEmpty() && remoteFile.hash == knownHash
+            ) {
+                if (localSig == knownSig) {
+                    return record(app, SyncResult(true, "동기화 완료 · 변경 없음"))
+                }
+                // 이 기기만 바뀌었다 → 올리기만
+                val up = updateFile(token, remoteFile.id, local.toBytes())
+                if (up.code !in 200..299) {
+                    return record(app, SyncResult(false, "올리기 실패 (${up.code}) ${brief(up.body)}"))
+                }
+                saveSyncState(app, remoteFile.id, hashOf(up.body), localSig)
+                return record(app, SyncResult(true, "동기화 완료 · 올림"))
+            }
+
+            // ── 보통 길: 내려받아 합친다 ──
+            val fileId = remoteFile?.id
             val remote: SyncData? = if (fileId == null) null else {
                 val got = httpGet("https://www.googleapis.com/drive/v3/files/$fileId?alt=media", token)
                 if (got.code !in 200..299) {
                     return record(app, SyncResult(false, "내려받기 실패 (${got.code}) ${brief(got.body)}"))
                 }
-                SyncData.parse(got.body)
+                SyncData.parseBytes(got.bytes)   // 압축 파일과 예전 그냥 JSON 둘 다 읽는다
             }
 
-            val local = TodoRepo.snapshot(app)
             val merged = if (remote == null) local else Merge.merge(local, remote)
 
             val changedHere = TodoRepo.applyMerged(app, merged)
             val needUpload = remote == null || merged.signature() != remote.signature()
 
+            var newId = fileId
+            var newHash = remoteFile?.hash
             if (needUpload) {
-                val body = merged.toJson().toString()
+                val body = merged.toBytes()
                 val up = if (fileId == null) createFile(token, body) else updateFile(token, fileId, body)
                 if (up.code !in 200..299) {
+                    forgetSyncState(app)
                     return record(app, SyncResult(false, "올리기 실패 (${up.code}) ${brief(up.body)}", changedHere))
                 }
+                newId = idOf(up.body) ?: fileId
+                newHash = hashOf(up.body)
             }
+            if (newId != null) saveSyncState(app, newId, newHash, merged.signature())
 
             val what = when {
                 changedHere && needUpload -> "주고받음"
@@ -139,49 +193,67 @@ object DriveSync {
 
     // ── 드라이브 REST ─────────────────────────────────────
 
-    private data class Res(val code: Int, val body: String)
+    /** bytes: 받은 그대로. body: 글자로 읽은 것 (오류 메시지·목록 응답용) */
+    private class Res(val code: Int, val bytes: ByteArray) {
+        val body: String get() = String(bytes, Charsets.UTF_8)
+    }
 
     private fun findFile(token: String): Res {
         val q = URLEncoder.encode("name = '$FILE_NAME'", "UTF-8")
         return httpGet(
             "https://www.googleapis.com/drive/v3/files" +
-                "?spaces=appDataFolder&pageSize=10&fields=files(id,modifiedTime)&q=$q",
+                "?spaces=appDataFolder&pageSize=10&fields=files(id,md5Checksum)&q=$q",
             token
         )
     }
 
-    private fun firstFileId(body: String): String? = try {
+    /** hash: 드라이브가 계산해 주는 파일 내용의 md5. 내용이 같으면 같다. */
+    private data class RemoteFile(val id: String, val hash: String?)
+
+    private fun firstFile(body: String): RemoteFile? = try {
         val files = JSONObject(body).optJSONArray("files")
-        if (files == null || files.length() == 0) null
-        else files.optJSONObject(0)?.optString("id", "")?.ifEmpty { null }
+        val f = if (files == null || files.length() == 0) null else files.optJSONObject(0)
+        val id = f?.optString("id", "")
+        if (f == null || id.isNullOrEmpty()) null
+        else RemoteFile(id, f.optString("md5Checksum", "").ifEmpty { null })
     } catch (e: Exception) {
         null
     }
 
-    private fun createFile(token: String, content: String): Res {
+    /** 올린 뒤 응답에서 새 내용 지문. 모르면 null (다음번에 한 번 내려받는다) */
+    private fun hashOf(body: String): String? = try {
+        JSONObject(body).optString("md5Checksum", "").ifEmpty { null }
+    } catch (e: Exception) {
+        null
+    }
+
+    private fun idOf(body: String): String? = try {
+        JSONObject(body).optString("id", "").ifEmpty { null }
+    } catch (e: Exception) {
+        null
+    }
+
+    private fun createFile(token: String, content: ByteArray): Res {
         val boundary = "sticky" + System.currentTimeMillis()
         val meta = JSONObject()
             .put("name", FILE_NAME)
             .put("parents", org.json.JSONArray().put("appDataFolder"))
             .toString()
-        val body = buildString {
-            append("--").append(boundary).append("\r\n")
-            append("Content-Type: application/json; charset=UTF-8\r\n\r\n")
-            append(meta).append("\r\n")
-            append("--").append(boundary).append("\r\n")
-            append("Content-Type: application/json; charset=UTF-8\r\n\r\n")
-            append(content).append("\r\n")
-            append("--").append(boundary).append("--\r\n")
-        }
+        val out = ByteArrayOutputStream()
+        fun w(t: String) = out.write(t.toByteArray(Charsets.UTF_8))
+        w("--$boundary\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n$meta\r\n")
+        w("--$boundary\r\nContent-Type: application/gzip\r\n\r\n")
+        out.write(content)
+        w("\r\n--$boundary--\r\n")
         return http(
-            "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
-            "POST", token, "multipart/related; boundary=$boundary", body
+            "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,md5Checksum",
+            "POST", token, "multipart/related; boundary=$boundary", out.toByteArray()
         )
     }
 
-    private fun updateFile(token: String, fileId: String, content: String): Res = http(
-        "https://www.googleapis.com/upload/drive/v3/files/$fileId?uploadType=media",
-        "PATCH", token, "application/json; charset=UTF-8", content
+    private fun updateFile(token: String, fileId: String, content: ByteArray): Res = http(
+        "https://www.googleapis.com/upload/drive/v3/files/$fileId?uploadType=media&fields=id,md5Checksum",
+        "PATCH", token, "application/gzip", content
     )
 
     private fun httpGet(url: String, token: String): Res = http(url, "GET", token, null, null)
@@ -191,7 +263,7 @@ object DriveSync {
         method: String,
         token: String,
         contentType: String?,
-        body: String?
+        body: ByteArray?
     ): Res {
         var conn: HttpURLConnection? = null
         try {
@@ -207,25 +279,18 @@ object DriveSync {
                     requestMethod = method
                 }
                 if (contentType != null) setRequestProperty("Content-Type", contentType)
-                if (body != null) doOutput = true
+                if (body != null) {
+                    doOutput = true
+                    setFixedLengthStreamingMode(body.size)
+                }
             }
             if (body != null) {
-                conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+                conn.outputStream.use { it.write(body) }
             }
             val code = conn.responseCode
             val stream = if (code in 200..299) conn.inputStream else conn.errorStream
-            val text = stream?.let { s ->
-                ByteArrayOutputStream().use { out ->
-                    val buf = ByteArray(8192)
-                    while (true) {
-                        val n = s.read(buf)
-                        if (n < 0) break
-                        out.write(buf, 0, n)
-                    }
-                    out.toString("UTF-8")
-                }
-            } ?: ""
-            return Res(code, text)
+            val bytes = stream?.use { it.readBytes() } ?: ByteArray(0)
+            return Res(code, bytes)
         } finally {
             conn?.disconnect()
         }

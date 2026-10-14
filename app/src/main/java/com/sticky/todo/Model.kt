@@ -63,20 +63,23 @@ data class Task(
         else -> false
     }
 
+    /**
+     * 기본값인 칸은 적지 않는다. 읽는 쪽(fromJson)이 빠진 칸을 기본값으로 채우므로
+     * 예전 버전과도 그대로 주고받을 수 있다. PC판 Task.to_json 과 같은 규칙.
+     */
     fun toJson(): JSONObject = JSONObject().apply {
         put("id", id)
-        put("text", text)
-        put("date", date)
-        put("done", done)
-        put("star", star)
-        put("repeatMode", repeatMode)
-        put("repeatDays", repeatDays)
-        put("repeatWeekdays", repeatWeekdays)
-        put("seq", seq)
         put("updatedAt", updatedAt)
-        // JSONObject.NULL 로 넣으면 다시 읽을 때 "null" 이라는 글자가 되어버린다
-        put("doneAt", doneAt ?: "")
-        put("archivedAt", archivedAt ?: "")
+        if (text.isNotEmpty()) put("text", text)
+        if (date.isNotEmpty()) put("date", date)
+        if (done) put("done", true)
+        if (star) put("star", true)
+        if (repeatMode.isNotEmpty() && repeatMode != Repeat.NONE) put("repeatMode", repeatMode)
+        if (repeatDays != 0) put("repeatDays", repeatDays)
+        if (repeatWeekdays != 0) put("repeatWeekdays", repeatWeekdays)
+        if (seq != 0L) put("seq", seq)
+        if (!doneAt.isNullOrEmpty()) put("doneAt", doneAt)
+        if (!archivedAt.isNullOrEmpty()) put("archivedAt", archivedAt)
     }
 
     companion object {

@@ -1,0 +1,118 @@
+name: Build APK
+
+on:
+  push:
+    branches: [ main, master ]
+    # PC 앱만 바뀐 경우에는 APK 를 다시 만들지 않는다
+    paths-ignore:
+      - 'desktop/**'
+      - '.github/workflows/build-desktop.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    # Releases 에 APK 를 올리려면 쓰기 권한이 필요하다
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # 서명 키를 저장소에 두면 공개되므로 GitHub Secret 에 넣어두고 여기서 되살린다.
+      # 키가 매번 바뀌면 폰이 덮어쓰기(업데이트)를 거부하기 때문에 고정 키가 꼭 필요하다.
+      - name: Restore signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::error::ANDROID_KEYSTORE_B64 시크릿이 없습니다."
+            echo "저장소 Settings → Secrets and variables → Actions → New repository secret 에서"
+            echo "이름을 ANDROID_KEYSTORE_B64 로 만들고 키스토어 base64 값을 넣어 주세요."
+            exit 1
+          fi
+          mkdir -p keystore
+          printf '%s' "$KEYSTORE_B64" | base64 -d > keystore/sticky.jks
+          echo "키스토어 복원 완료 ($(wc -c < keystore/sticky.jks) 바이트)"
+
+      - name: Show environment
+        run: |
+          echo "ANDROID_HOME=${ANDROID_HOME:-(unset)}"
+          ls -1 "${ANDROID_HOME:-$ANDROID_SDK_ROOT}/platforms" 2>/dev/null || echo "no platforms dir"
+          java -version
+          echo "--- repo root ---"
+          ls -1
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.7'
+
+      # 배포용(release) 빌드: 쓰지 않는 코드·리소스를 걷어내고 디버깅 기능을 뺀다.
+      # 이 저장소의 gradlew 는 래퍼 jar 없이 도는 셸 스크립트다.
+      # gradle 이 이미 깔려 있으면 그쪽으로 넘어간다.
+      - name: Build release APK
+        run: |
+          if [ -f ./gradlew ]; then
+            chmod +x ./gradlew
+            ./gradlew assembleRelease --no-daemon --stacktrace
+          else
+            gradle assembleRelease --no-daemon --stacktrace
+          fi
+          ls -l app/build/outputs/apk/release/
+
+      # 폰에서 바로 받을 수 있게 Releases 에 올린다.
+      # 항상 같은 이름(todo-widget.apk)으로 올리므로 아래 주소가 늘 최신 APK 를 가리킨다.
+      #   https://github.com/<계정>/<저장소>/releases/latest/download/todo-widget.apk
+      - name: Publish APK to Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk todo-widget.apk
+          SIZE=$(du -k todo-widget.apk | cut -f1)
+          TAG="build-${{ github.run_number }}"
+          NOW=$(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M')
+          gh release create "$TAG" todo-widget.apk \
+            --title "할 일 위젯 ($NOW)" \
+            --notes "빌드 #${{ github.run_number }} · ${SIZE} KB · 아래 todo-widget.apk 를 눌러 바로 설치하세요." \
+            --latest
+
+      # 압축된 형태로도 남겨둔다 (PC 에서 받을 때용)
+      - name: Upload APK as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: todo-widget-apk
+          path: app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+
+      # 줄인 코드의 이름표. 나중에 오류 기록을 원래 이름으로 되돌려 볼 때 쓴다 (앱에는 안 들어감)
+      - name: Upload R8 mapping
+        uses: actions/upload-artifact@v4
+        with:
+          name: r8-mapping
+          path: app/build/outputs/mapping/release/mapping.txt
+          if-no-files-found: ignore
+
+      - name: Upload build reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            app/build/reports/**
+            app/build/outputs/logs/**
+            build/reports/**
+          if-no-files-found: ignore
+
+      # 빌드가 끝나면 서버에 남은 키 파일을 지운다
+      - name: Clean up signing key
+        if: always()
+        run: rm -f keystore/sticky.jks

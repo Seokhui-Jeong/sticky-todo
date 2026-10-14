@@ -82,8 +82,25 @@ m2 = c.merge(c.SyncData([c.Task(id="y", text="되살림", updatedAt=now)], {}), 
 eq("지운 뒤 고치면 되살아남", ([t.id for t in m2.tasks], m2.deleted), (["y", "x"], {}))
 r = c.SyncData.from_json(m.to_json())
 eq("저장 형식 왕복", r.signature(), m.signature())
-o = c.Task(id="k", doneAt=None).to_json()
-eq("빈 시각은 빈 글자로 (폰과 같게)", (o["doneAt"], o["archivedAt"]), ("", ""))
+o = c.Task(id="k", updatedAt=5).to_json()
+eq("기본값 칸은 적지 않음", o, {"id": "k", "updatedAt": 5})
+full = c.Task(id="f", text="가", date="2026-10-05", done=True, star=True, repeatMode=c.WEEK,
+              repeatWeekdays=21, seq=3, doneAt="2026-10-02T08:00:00", updatedAt=9)
+eq("빠진 칸 없이 왕복", c.Task.from_json(full.to_json()).to_json(), full.to_json())
+
+print("[드라이브 파일 형식]")
+big = c.SyncData([c.Task(id="t%d" % i, text="할 일 %d" % i, date="2026-10-%02d" % (i % 28 + 1),
+                         updatedAt=now + i) for i in range(200)], {"gone": now})
+blob = c.encode_sync(big)
+eq("gzip 으로 저장", blob[:2], b"\x1f\x8b")
+eq("압축 왕복", c.decode_sync(blob).signature() == big.signature(), True)
+import json as _json
+old_plain = _json.dumps(big.to_json(), ensure_ascii=False).encode("utf-8")
+eq("예전(압축 전) 파일도 읽음", c.decode_sync(old_plain).signature() == big.signature(), True)
+eq("예전 형식(빈 글자 칸)도 읽음", c.decode_sync(_json.dumps({"tasks": [{"id": "a", "doneAt": "", "archivedAt": "",
+   "repeatMode": "none", "updatedAt": 3}], "deleted": {}})).tasks[0].doneAt, None)
+eq("망가진 파일은 None", c.decode_sync(b"\x1f\x8bxx"), None)
+eq("크기 1/5 이하", len(blob) * 5 < len(old_plain), True)
 eq("예전 자료: 방식 없는 주기 → 기한 기준", c.Task.from_json({"id": "q", "repeatDays": 3}).repeatMode, c.DUE)
 
 print("\n실패 %d건" % fails)

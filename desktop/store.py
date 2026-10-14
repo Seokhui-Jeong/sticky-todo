@@ -120,7 +120,7 @@ class Store(object):
         tmp = self.path + ".tmp"
         try:
             with open(tmp, "w", encoding="utf-8") as f:
-                json.dump(root, f, ensure_ascii=False, indent=1)
+                json.dump(root, f, ensure_ascii=False, separators=(",", ":"))
             os.replace(tmp, self.path)
         except OSError:
             pass

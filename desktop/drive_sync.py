@@ -126,6 +126,10 @@ class Account(object):
         self.last_msg = ""
         self.last_ok = False
         self.need_reconnect = False
+        # 드라이브 파일을 마지막으로 맞췄을 때의 상태. 파일 내용 지문(md5)이 같으면 내려받지 않는다.
+        self.file_id = None
+        self.file_hash = None
+        self.synced_sig = None
         self._access = None
         self._access_until = 0
         self.lock = threading.Lock()
@@ -144,6 +148,19 @@ class Account(object):
         self.last_msg = o.get("last_msg", "")
         self.last_ok = bool(o.get("last_ok", False))
         self.need_reconnect = bool(o.get("need_reconnect", False))
+        self.file_id = o.get("file_id")
+        self.file_hash = o.get("file_hash")
+        self.synced_sig = o.get("synced_sig")
+
+    def forget_sync_state(self):
+        """다음 동기화는 처음부터 전부 받는다"""
+        self.file_id = self.file_hash = self.synced_sig = None
+
+    def remember_sync_state(self, file_id, file_hash, sig):
+        if file_id and file_hash:
+            self.file_id, self.file_hash, self.synced_sig = file_id, file_hash, sig
+        else:
+            self.forget_sync_state()
 
     def save(self):
         o = {
@@ -153,6 +170,9 @@ class Account(object):
             "last_msg": self.last_msg,
             "last_ok": self.last_ok,
             "need_reconnect": self.need_reconnect,
+            "file_id": self.file_id,
+            "file_hash": self.file_hash,
+            "synced_sig": self.synced_sig,
         }
         tmp = self.path + ".tmp"
         try:
@@ -179,6 +199,7 @@ class Account(object):
         self.need_reconnect = False
         self.last_at = 0
         self.last_msg = ""
+        self.forget_sync_state()
         self.save()
         if tok:
             try:
@@ -196,11 +217,13 @@ class HttpError(Exception):
         self.body = body
 
 
-def _request(url, method="GET", data=None, headers=None, timeout=30):
+def _request(url, method="GET", data=None, headers=None, timeout=30, raw=False):
+    """(상태 코드, 본문). raw=True 면 본문을 바이트 그대로 (압축 파일 내려받기용)"""
     req = urllib.request.Request(url, data=data, method=method, headers=headers or {})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
-            return r.getcode(), r.read().decode("utf-8", "replace")
+            body = r.read()
+            return r.getcode(), body if raw else body.decode("utf-8", "replace")
     except urllib.error.HTTPError as e:
         try:
             body = e.read().decode("utf-8", "replace")
@@ -331,6 +354,7 @@ def login(account):
         account.refresh_token = refresh
         account.email = email
         account.need_reconnect = False
+        account.forget_sync_state()
         account._access = tok.get("access_token")
         account._access_until = time.time() + int(tok.get("expires_in", 0)) - 60
         account.save()
@@ -361,13 +385,13 @@ def _access_token(account, force=False):
 
 # ── 드라이브 ──────────────────────────────────────────────
 
-def _drive(account, url, method="GET", data=None, ctype=None):
+def _drive(account, url, method="GET", data=None, ctype=None, raw=False):
     """토큰이 거절되면 한 번만 새로 받아 다시 시도한다"""
     for attempt in (0, 1):
         headers = {"Authorization": "Bearer " + _access_token(account, force=attempt == 1)}
         if ctype:
             headers["Content-Type"] = ctype
-        code, body = _request(url, method, data, headers)
+        code, body = _request(url, method, data, headers, raw=raw)
         if code == 401 and attempt == 0:
             continue
         return code, body
@@ -375,43 +399,53 @@ def _drive(account, url, method="GET", data=None, ctype=None):
 
 
 def _find_file(account):
+    """(파일 id, 내용 지문 md5) — 파일이 없으면 (None, None)"""
     q = urllib.parse.quote("name = '%s'" % FILE_NAME)
     code, body = _drive(account, "https://www.googleapis.com/drive/v3/files"
-                        "?spaces=appDataFolder&pageSize=10&fields=files(id,modifiedTime)&q=" + q)
+                        "?spaces=appDataFolder&pageSize=10&fields=files(id,md5Checksum)&q=" + q)
     if code // 100 != 2:
         raise RuntimeError("드라이브 조회 실패 (%s) %s" % (code, _brief(body)))
     files = json.loads(body).get("files") or []
-    return files[0]["id"] if files else None
+    if not files:
+        return None, None
+    return files[0].get("id"), files[0].get("md5Checksum") or None
 
 
 def _download(account, fid):
-    code, body = _drive(account, "https://www.googleapis.com/drive/v3/files/%s?alt=media" % fid)
+    code, body = _drive(account, "https://www.googleapis.com/drive/v3/files/%s?alt=media" % fid,
+                        raw=True)
     if code // 100 != 2:
-        raise RuntimeError("내려받기 실패 (%s) %s" % (code, _brief(body)))
-    try:
-        return core.SyncData.from_json(json.loads(body))
-    except (ValueError, AttributeError):
-        return None
+        raise RuntimeError("내려받기 실패 (%s) %s" % (
+            code, _brief(body.decode("utf-8", "replace") if isinstance(body, bytes) else body)))
+    return core.decode_sync(body)   # 압축 파일과 예전 그냥 JSON 둘 다 읽는다
 
 
-def _upload(account, fid, content):
-    payload = content.encode("utf-8")
+def _upload(account, fid, data):
+    """SyncData 를 압축해 올리고 (파일 id, 새 내용 지문) 을 돌려준다"""
+    payload = core.encode_sync(data)
     if fid:
         code, body = _drive(account,
-                            "https://www.googleapis.com/upload/drive/v3/files/%s?uploadType=media" % fid,
-                            "PATCH", payload, "application/json; charset=UTF-8")
+                            "https://www.googleapis.com/upload/drive/v3/files/%s"
+                            "?uploadType=media&fields=id,md5Checksum" % fid,
+                            "PATCH", payload, "application/gzip")
     else:
         boundary = "sticky%d" % int(time.time() * 1000)
         meta = json.dumps({"name": FILE_NAME, "parents": ["appDataFolder"]})
         parts = (
             "--%s\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n%s\r\n"
-            "--%s\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n" % (boundary, meta, boundary)
+            "--%s\r\nContent-Type: application/gzip\r\n\r\n" % (boundary, meta, boundary)
         ).encode("utf-8") + payload + ("\r\n--%s--\r\n" % boundary).encode("utf-8")
         code, body = _drive(account,
-                            "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
+                            "https://www.googleapis.com/upload/drive/v3/files"
+                            "?uploadType=multipart&fields=id,md5Checksum",
                             "POST", parts, "multipart/related; boundary=" + boundary)
     if code // 100 != 2:
         raise RuntimeError("올리기 실패 (%s) %s" % (code, _brief(body)))
+    try:
+        o = json.loads(body) if body else {}
+    except ValueError:
+        o = {}
+    return o.get("id") or fid, o.get("md5Checksum") or None
 
 
 def sync_once(account, local):
@@ -423,12 +457,34 @@ def sync_once(account, local):
         return False, "구글 계정이 연결되지 않았습니다", None
     try:
         with account.lock:
-            fid = _find_file(account)
+            fid, fhash = _find_file(account)
+            local_sig = local.signature()
+
+            # 빠른 길: 드라이브 파일 내용이 지난번 그대로면 내려받지 않는다.
+            # (다른 기기가 바꾼 게 없고, 그 내용은 이미 이 컴퓨터 목록에 다 들어 있다)
+            if (fid and fhash and fid == account.file_id and fhash == account.file_hash
+                    and account.synced_sig):
+                if local_sig == account.synced_sig:
+                    what = "변경 없음"
+                else:
+                    new_id, new_hash = _upload(account, fid, local)
+                    account.remember_sync_state(new_id, new_hash, local_sig)
+                    what = "올림"
+                account.record(True, "동기화 완료 · " + what)
+                return True, account.last_msg, local
+
+            # 보통 길: 내려받아 합친다
             remote = _download(account, fid) if fid else None
             merged = core.merge(local, remote) if remote else local
             need_up = remote is None or merged.signature() != remote.signature()
+            new_id, new_hash = fid, fhash
             if need_up:
-                _upload(account, fid, json.dumps(merged.to_json(), ensure_ascii=False))
+                try:
+                    new_id, new_hash = _upload(account, fid, merged)
+                except RuntimeError:
+                    account.forget_sync_state()
+                    raise
+            account.remember_sync_state(new_id, new_hash, merged.signature())
         what = "올림" if need_up else "확인"
         account.record(True, "동기화 완료 · " + what)
         return True, account.last_msg, merged

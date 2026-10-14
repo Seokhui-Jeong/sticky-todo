@@ -336,9 +336,13 @@ object TodoRepo {
      * 실제로 내용이 달라졌으면 true 를 돌려준다 (화면·위젯을 다시 그리기 위해).
      */
     @Synchronized
-    fun applyMerged(ctx: Context, data: SyncData): Boolean {
+    fun applyMerged(ctx: Context, incoming: SyncData): Boolean {
         ensure(ctx)
         val before = snapshotSignature()
+        // 통신하는 몇 초 사이에 이 기기에서 또 바꾼 게 있을 수 있다.
+        // 그대로 덮어쓰면 그 변경이 사라지므로 지금 목록과 한 번 더 합친다.
+        // (그 변경은 다음 동기화 때 올라간다)
+        val data = Merge.merge(snapshot(ctx), incoming)
 
         val newItems = mutableListOf<Task>()
         val newArchive = mutableListOf<Task>()

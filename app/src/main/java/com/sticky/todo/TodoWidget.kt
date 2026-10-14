@@ -31,7 +31,11 @@ class TodoWidget : AppWidgetProvider() {
 
         // 위젯이 깨어난 김에 동기화도 한 번 (30분마다 시스템이 깨워준다)
         SyncScheduler.ensurePeriodic(context)
-        SyncScheduler.soon(context, 2)
+        // 30분마다 도는 동기화가 따로 있으므로, 최근에 맞췄다면 위젯 갱신 때는 건너뛴다
+        // (폰이 30분에 두 번씩 깨어나 통신하던 것을 한 번으로)
+        if (System.currentTimeMillis() - DriveSync.lastSyncAt(context) > 20 * 60 * 1000L) {
+            SyncScheduler.soon(context, 2)
+        }
     }
 
     /** 사용자가 위젯 크기를 바꾸면 머리글을 보일지 다시 판단한다 */

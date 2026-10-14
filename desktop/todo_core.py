@@ -10,6 +10,8 @@
 """
 
 import datetime as _dt
+import gzip
+import json
 import re
 import time
 import uuid
@@ -91,21 +93,30 @@ class Task(object):
         return not (self.text or "").strip() and not (self.date or "").strip()
 
     def to_json(self):
-        return {
-            "id": self.id,
-            "text": self.text,
-            "date": self.date,
-            "done": self.done,
-            "star": self.star,
-            "repeatMode": self.repeatMode,
-            "repeatDays": self.repeatDays,
-            "repeatWeekdays": self.repeatWeekdays,
-            "seq": self.seq,
-            "updatedAt": self.updatedAt,
-            # 안드로이드 쪽이 null 대신 빈 글자를 쓴다. 맞춰 둔다.
-            "doneAt": self.doneAt or "",
-            "archivedAt": self.archivedAt or "",
-        }
+        """기본값인 칸은 적지 않는다 (읽는 쪽이 빠진 칸을 기본값으로 채운다).
+        안드로이드 Task.toJson 과 같은 규칙."""
+        o = {"id": self.id, "updatedAt": self.updatedAt}
+        if self.text:
+            o["text"] = self.text
+        if self.date:
+            o["date"] = self.date
+        if self.done:
+            o["done"] = True
+        if self.star:
+            o["star"] = True
+        if self.repeatMode and self.repeatMode != NONE:
+            o["repeatMode"] = self.repeatMode
+        if self.repeatDays:
+            o["repeatDays"] = self.repeatDays
+        if self.repeatWeekdays:
+            o["repeatWeekdays"] = self.repeatWeekdays
+        if self.seq:
+            o["seq"] = self.seq
+        if self.doneAt:
+            o["doneAt"] = self.doneAt
+        if self.archivedAt:
+            o["archivedAt"] = self.archivedAt
+        return o
 
     @staticmethod
     def from_json(o):
@@ -404,6 +415,33 @@ class SyncData(object):
             except (TypeError, ValueError):
                 deleted[str(k)] = 0
         return SyncData(tasks, deleted)
+
+
+# ── 드라이브에 두는 파일: 촘촘한 JSON 을 gzip 으로 압축 ─────────
+
+_GZIP_MAGIC = b"\x1f\x8b"
+
+
+def encode_sync(data):
+    """드라이브에 올릴 바이트. 공백 없는 JSON → gzip (보통 원래 크기의 10~20%)"""
+    raw = json.dumps(data.to_json(), ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    return gzip.compress(raw, 6)
+
+
+def decode_sync(blob):
+    """드라이브에서 받은 바이트 → SyncData. 압축 전 버전이 올린 그냥 JSON 도 읽는다.
+    읽을 수 없으면 None."""
+    try:
+        if isinstance(blob, str):
+            blob = blob.encode("utf-8")
+        if blob[:2] == _GZIP_MAGIC:
+            blob = gzip.decompress(blob)
+        o = json.loads(blob.decode("utf-8"))
+        if not isinstance(o, dict):
+            return None
+        return SyncData.from_json(o)
+    except (ValueError, OSError, EOFError, UnicodeDecodeError, AttributeError):
+        return None
 
 
 def merge(local, remote, now=None):

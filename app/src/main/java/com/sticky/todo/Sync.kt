@@ -2,6 +2,10 @@ package com.sticky.todo
 
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.util.zip.GZIPInputStream
+import java.util.zip.GZIPOutputStream
 
 /**
  * 기기 사이에 주고받는 한 덩어리.
@@ -22,6 +26,13 @@ data class SyncData(
             deleted.forEach { (id, at) -> o.put(id, at) }
         })
         put("savedAt", System.currentTimeMillis())
+    }
+
+    /** 드라이브에 올릴 바이트. 공백 없는 JSON 을 gzip 으로 압축 (보통 원래 크기의 10~20%) */
+    fun toBytes(): ByteArray {
+        val out = ByteArrayOutputStream()
+        GZIPOutputStream(out).use { it.write(toJson().toString().toByteArray(Charsets.UTF_8)) }
+        return out.toByteArray()
     }
 
     /** 내용이 같은지 가볍게 비교하기 위한 지문 (저장 시각은 뺀다) */
@@ -60,6 +71,19 @@ data class SyncData(
 
         fun parse(text: String): SyncData? = try {
             fromJson(JSONObject(text))
+        } catch (e: Exception) {
+            null
+        }
+
+        /**
+         * 드라이브에서 받은 바이트를 읽는다. gzip 으로 압축된 것(2.3.0 부터)과
+         * 예전 버전이 올린 그냥 JSON 을 모두 읽는다. 읽을 수 없으면 null.
+         */
+        fun parseBytes(bytes: ByteArray): SyncData? = try {
+            val raw = if (bytes.size >= 2 && bytes[0] == 0x1f.toByte() && bytes[1] == 0x8b.toByte()) {
+                GZIPInputStream(ByteArrayInputStream(bytes)).use { it.readBytes() }
+            } else bytes
+            parse(String(raw, Charsets.UTF_8))
         } catch (e: Exception) {
             null
         }

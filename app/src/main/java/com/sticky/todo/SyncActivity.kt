@@ -33,6 +33,7 @@ class SyncActivity : AppCompatActivity() {
         try {
             // 성공 여부와 무관하게 예외를 던질 수 있어 감싼다
             GoogleSignIn.getSignedInAccountFromIntent(result.data).getResult(Exception::class.java)
+            DriveSync.forgetSyncState(this)
             paint()
             runSync()
         } catch (e: Exception) {
@@ -114,6 +115,7 @@ class SyncActivity : AppCompatActivity() {
             .setPositiveButton("연결 끊기") { _, _ ->
                 DriveSync.client(this).signOut().addOnCompleteListener {
                     SyncScheduler.cancelAll(this)
+                    DriveSync.forgetSyncState(this)
                     paint()
                 }
             }
