@@ -83,6 +83,9 @@ def system_dark():
 # ── 시작 프로그램 등록 ─────────────────────────────────────
 
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
+# 작업 관리자 → 시작 앱 에서 켜고 끈 상태는 윈도우가 여기에 따로 적어 둔다.
+# 값의 첫 바이트가 홀수(03, 07)면 '사용 안 함'.
+APPROVED_KEY = r"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run"
 
 
 def _startup_command():
@@ -105,8 +108,30 @@ def _run_value(name):
         return None
 
 
+def _approved_disabled(name=RUN_NAME):
+    """작업 관리자 '시작 앱' 에서 '사용 안 함' 으로 꺼져 있는가"""
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, APPROVED_KEY) as k:
+            v = winreg.QueryValueEx(k, name)[0]
+        return bool(v) and (bytearray(v)[0] & 1) == 1
+    except Exception:
+        return False
+
+
+def _set_approved(name=RUN_NAME):
+    """작업 관리자 '시작 앱' 상태를 '사용' 으로"""
+    try:
+        import winreg
+        with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, APPROVED_KEY, 0, winreg.KEY_SET_VALUE) as k:
+            winreg.SetValueEx(k, name, 0, winreg.REG_BINARY, b"\x02" + b"\x00" * 11)
+    except Exception:
+        pass
+
+
 def startup_enabled():
-    return _run_value(RUN_NAME) is not None
+    """실제로 켜질 상태인가: 등록돼 있고, 작업 관리자에서 꺼 두지 않았다"""
+    return _run_value(RUN_NAME) is not None and not _approved_disabled()
 
 
 def set_startup(enable, name=RUN_NAME):
@@ -120,9 +145,69 @@ def set_startup(enable, name=RUN_NAME):
                     winreg.DeleteValue(k, name)
                 except FileNotFoundError:
                     pass
+        if enable:
+            # 설정에서 직접 켠 것이므로, 작업 관리자에서 꺼 둔 상태도 함께 푼다
+            _set_approved(name)
         return True
     except Exception:
         return False
+
+
+def _exe_in(command):
+    """등록된 명령에서 exe 경로만 뽑는다 (앞뒤 따옴표 제거)"""
+    c = (command or "").strip()
+    if c.startswith('"'):
+        return c[1:].split('"', 1)[0]
+    return c.split(" ", 1)[0]
+
+
+def repair_startup():
+    """시작 프로그램에 등록된 exe 가 없어졌거나(옮김·삭제), 지금 실행 중인 것이 더 새 파일이면
+    (새로 받아 'sticky-todo (1).exe' 처럼 이름이 바뀐 경우 등) 지금 exe 로 고쳐 단다.
+    작업 관리자에서 꺼 둔 상태는 건드리지 않는다. 고쳤으면 True."""
+    if not getattr(sys, "frozen", False):
+        return False                      # .py 로 돌릴 때는 exe 등록을 건드리지 않는다
+    cur = _run_value(RUN_NAME)
+    if cur is None:
+        return False
+    old = _exe_in(cur)
+    me = sys.executable
+    if os.path.normcase(os.path.abspath(old)) == os.path.normcase(os.path.abspath(me)):
+        return False
+    try:
+        newer = (not os.path.exists(old)) or os.path.getmtime(me) > os.path.getmtime(old)
+    except OSError:
+        newer = True
+    if not newer:
+        return False
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY, 0, winreg.KEY_SET_VALUE) as k:
+            winreg.SetValueEx(k, RUN_NAME, 0, winreg.REG_SZ, _startup_command())
+        log_error("시작 프로그램 경로를 고침: %s → %s" % (old, me))
+        return True
+    except Exception:
+        return False
+
+
+# ── 오류 기록 ─────────────────────────────────────────────
+# exe 는 창 없는 프로그램이라 오류가 나도 아무것도 보이지 않는다.
+# %APPDATA%\StickyTodo\error.log 에 남겨 두어 나중에 원인을 볼 수 있게 한다.
+
+def log_error(text):
+    try:
+        path = os.path.join(st.data_dir(), "error.log")
+        if os.path.exists(path) and os.path.getsize(path) > 64 * 1024:
+            os.replace(path, path + ".old")          # 너무 커지지 않게 한 번만 돌려 쓴다
+        with open(path, "a", encoding="utf-8") as f:
+            f.write("[%s] %s\n" % (time.strftime("%Y-%m-%d %H:%M:%S"), text.rstrip()))
+    except Exception:
+        pass
+
+
+def log_exception(where):
+    import traceback
+    log_error("%s\n%s" % (where, traceback.format_exc()))
 
 
 def replace_old_startup():
@@ -266,9 +351,16 @@ class Tray(object):
         )
         try:
             self.icon = pystray.Icon("StickyTodo", image, APP_TITLE, menu)
-            threading.Thread(target=self.icon.run, daemon=True).start()
+            threading.Thread(target=self._run, daemon=True).start()
         except Exception:
+            log_exception("트레이 아이콘 만들기 실패")
             self.icon = None
+
+    def _run(self):
+        try:
+            self.icon.run()
+        except Exception:
+            log_exception("트레이 아이콘 실행 중 오류")
 
     def available(self):
         return self.icon is not None
@@ -391,6 +483,7 @@ class App(object):
         self.root.after(10, lambda: hide_from_taskbar(self.root))
         self.root.after(60, self._restore_position)
         self.root.after(200, self._first_run)
+        self.root.after(3000, repair_startup)
         self.root.after(150, self._pump)
         self.root.after(TICK_MS, self._tick)
         self.root.after(1500, lambda: self.request_sync(0))
@@ -1657,7 +1750,10 @@ class SettingsWindow(Popup):
         self.choice("테마", st.THEME_LABELS, "theme", self._look_changed)
         self.choice("글자 크기", st.FONT_LABELS, "font", self._look_changed)
         self.choice("줄 간격", st.SPACING_LABELS, "spacing", lambda: a.refresh(force=True))
-        self.toggle("윈도우 시작 시 실행", "", startup_enabled, lambda v: set_startup(v))
+        self.toggle("윈도우 시작 시 실행",
+                    "작업 관리자 '시작 앱'에서 꺼져 있습니다. 켜면 함께 풀립니다"
+                    if (_run_value(RUN_NAME) is not None and _approved_disabled()) else "",
+                    startup_enabled, lambda v: set_startup(v))
 
         self.section("날짜")
         self.choice("표시 방식", st.DATE_LABELS, "date_mode", lambda: self._dates_changed())
@@ -1848,13 +1944,22 @@ def main():
     if not claim_single_instance(lambda: holder["app"].events.put(("show",)) if "app" in holder else None):
         return
 
-    root = tk.Tk()
     try:
-        root.iconbitmap(resource("icon.ico"))
-    except tk.TclError:
-        pass
-    holder["app"] = App(root)
-    root.mainloop()
+        root = tk.Tk()
+        try:
+            root.iconbitmap(resource("icon.ico"))
+        except tk.TclError:
+            pass
+        # 버튼·타이머 등에서 난 오류도 기록 (그래도 앱은 계속 돈다)
+        def report(exc, val, tb):
+            import traceback
+            log_error("화면 처리 중 오류\n" + "".join(traceback.format_exception(exc, val, tb)))
+        root.report_callback_exception = report
+        holder["app"] = App(root)
+        root.mainloop()
+    except Exception:
+        log_exception("시작 중 오류로 꺼짐")
+        raise
 
 
 if __name__ == "__main__":
