@@ -29,6 +29,7 @@ import webbrowser
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import todo_core as core
+from i18n import T
 from store import data_dir
 
 SCOPE = "https://www.googleapis.com/auth/drive.appdata openid email"
@@ -250,7 +251,7 @@ def _brief(body):
 
 _DONE_PAGE = u"""<!doctype html><meta charset="utf-8"><title>할 일 메모 Desktop</title>
 <body style="font-family:'Malgun Gothic',sans-serif;text-align:center;padding-top:80px;color:#22252A">
-<h2>%s</h2><p style="color:#9AA0A6">이 창은 닫아도 됩니다.</p></body>"""
+<h2>%s</h2><p style="color:#9AA0A6">%s</p></body>"""
 
 
 def login(account):
@@ -258,7 +259,7 @@ def login(account):
     (성공 여부, 메시지)"""
     cid, secret = client_info()
     if not cid:
-        return False, "이 버전에는 구글 연결 정보가 들어 있지 않습니다"
+        return False, T("이 버전에는 구글 연결 정보가 들어 있지 않습니다")
 
     got = {}
 
@@ -269,8 +270,8 @@ def login(account):
                 got["code"] = (q.get("code") or [None])[0]
                 got["error"] = (q.get("error") or [None])[0]
                 got["state"] = (q.get("state") or [None])[0]
-                msg = u"연결됐습니다" if got["code"] else u"연결하지 못했습니다"
-                body = (_DONE_PAGE % msg).encode("utf-8")
+                msg = T("연결됐습니다") if got["code"] else T("연결하지 못했습니다")
+                body = (_DONE_PAGE % (msg, T("이 창은 닫아도 됩니다."))).encode("utf-8")
                 self.send_response(200)
             else:
                 body = b""
@@ -313,14 +314,14 @@ def login(account):
         server.server_close()
 
     if "code" not in got:
-        return False, "시간 안에 로그인을 마치지 않았습니다"
+        return False, T("시간 안에 로그인을 마치지 않았습니다")
     if got.get("state") != state:
-        return False, "로그인 응답이 올바르지 않습니다"
+        return False, T("로그인 응답이 올바르지 않습니다")
     if not got.get("code"):
-        err = got.get("error") or "취소됨"
+        err = got.get("error") or T("취소됨")
         if err == "access_denied":
-            return False, "승인하지 않았거나, 이 계정이 테스트 사용자 목록에 없습니다"
-        return False, "로그인 실패: " + err
+            return False, T("승인하지 않았거나, 이 계정이 테스트 사용자 목록에 없습니다")
+        return False, T("로그인 실패: ") + err
 
     try:
         tok = _post(TOKEN_URL, {
@@ -332,13 +333,13 @@ def login(account):
             "code_verifier": verifier,
         })
     except HttpError as e:
-        return False, "토큰을 받지 못했습니다 (%s) %s" % (e.code, _brief(e.body))
+        return False, T("토큰을 받지 못했습니다 (%s) %s") % (e.code, _brief(e.body))
     except Exception as e:
-        return False, "통신 오류: %s" % e
+        return False, T("통신 오류: %s") % e
 
     refresh = tok.get("refresh_token")
     if not refresh:
-        return False, "구글이 장기 토큰을 주지 않았습니다. 다시 시도해 주세요"
+        return False, T("구글이 장기 토큰을 주지 않았습니다. 다시 시도해 주세요")
 
     email = None
     idt = tok.get("id_token")
@@ -358,7 +359,7 @@ def login(account):
         account._access = tok.get("access_token")
         account._access_until = time.time() + int(tok.get("expires_in", 0)) - 60
         account.save()
-    return True, "연결됐습니다"
+    return True, T("연결됐습니다")
 
 
 def _access_token(account, force=False):
@@ -376,8 +377,8 @@ def _access_token(account, force=False):
         if e.code in (400, 401) and "invalid_grant" in e.body:
             account.need_reconnect = True
             account.save()
-            raise RuntimeError("구글 연결이 만료됐습니다. 설정에서 다시 연결해 주세요")
-        raise RuntimeError("인증 실패 (%s) %s" % (e.code, _brief(e.body)))
+            raise RuntimeError(T("구글 연결이 만료됐습니다. 설정에서 다시 연결해 주세요"))
+        raise RuntimeError(T("인증 실패 (%s) %s") % (e.code, _brief(e.body)))
     account._access = tok["access_token"]
     account._access_until = time.time() + int(tok.get("expires_in", 3600)) - 60
     return account._access
@@ -404,7 +405,7 @@ def _find_file(account):
     code, body = _drive(account, "https://www.googleapis.com/drive/v3/files"
                         "?spaces=appDataFolder&pageSize=10&fields=files(id,md5Checksum)&q=" + q)
     if code // 100 != 2:
-        raise RuntimeError("드라이브 조회 실패 (%s) %s" % (code, _brief(body)))
+        raise RuntimeError(T("드라이브 조회 실패 (%s) %s") % (code, _brief(body)))
     files = json.loads(body).get("files") or []
     if not files:
         return None, None
@@ -415,7 +416,7 @@ def _download(account, fid):
     code, body = _drive(account, "https://www.googleapis.com/drive/v3/files/%s?alt=media" % fid,
                         raw=True)
     if code // 100 != 2:
-        raise RuntimeError("내려받기 실패 (%s) %s" % (
+        raise RuntimeError(T("내려받기 실패 (%s) %s") % (
             code, _brief(body.decode("utf-8", "replace") if isinstance(body, bytes) else body)))
     return core.decode_sync(body)   # 압축 파일과 예전 그냥 JSON 둘 다 읽는다
 
@@ -440,7 +441,7 @@ def _upload(account, fid, data):
                             "?uploadType=multipart&fields=id,md5Checksum",
                             "POST", parts, "multipart/related; boundary=" + boundary)
     if code // 100 != 2:
-        raise RuntimeError("올리기 실패 (%s) %s" % (code, _brief(body)))
+        raise RuntimeError(T("올리기 실패 (%s) %s") % (code, _brief(body)))
     try:
         o = json.loads(body) if body else {}
     except ValueError:
@@ -454,7 +455,7 @@ def sync_once(account, local):
     병합 결과는 '보낸 시점의 이 컴퓨터 목록 + 드라이브' 이다.
     그 사이 이 컴퓨터에서 또 바뀐 것은 부르는 쪽에서 한 번 더 합친다."""
     if not account.connected():
-        return False, "구글 계정이 연결되지 않았습니다", None
+        return False, T("구글 계정이 연결되지 않았습니다"), None
     try:
         with account.lock:
             fid, fhash = _find_file(account)
@@ -465,12 +466,12 @@ def sync_once(account, local):
             if (fid and fhash and fid == account.file_id and fhash == account.file_hash
                     and account.synced_sig):
                 if local_sig == account.synced_sig:
-                    what = "변경 없음"
+                    what = T("변경 없음")
                 else:
                     new_id, new_hash = _upload(account, fid, local)
                     account.remember_sync_state(new_id, new_hash, local_sig)
-                    what = "올림"
-                account.record(True, "동기화 완료 · " + what)
+                    what = T("올림")
+                account.record(True, T("동기화 완료 · ") + what)
                 return True, account.last_msg, local
 
             # 보통 길: 내려받아 합친다
@@ -485,13 +486,13 @@ def sync_once(account, local):
                     account.forget_sync_state()
                     raise
             account.remember_sync_state(new_id, new_hash, merged.signature())
-        what = "올림" if need_up else "확인"
-        account.record(True, "동기화 완료 · " + what)
+        what = T("올림") if need_up else T("확인")
+        account.record(True, T("동기화 완료 · ") + what)
         return True, account.last_msg, merged
     except RuntimeError as e:
         account.record(False, str(e))
         return False, str(e), None
     except Exception as e:
-        msg = "통신 오류: %s" % (e.__class__.__name__,)
+        msg = T("통신 오류: %s") % (e.__class__.__name__,)
         account.record(False, msg)
         return False, msg, None

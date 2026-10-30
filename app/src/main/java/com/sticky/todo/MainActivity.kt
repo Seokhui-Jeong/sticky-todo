@@ -10,12 +10,11 @@ import android.widget.PopupMenu
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : BaseActivity() {
 
     private lateinit var list: RecyclerView
     private lateinit var emptyView: TextView
@@ -75,7 +74,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun confirmDelete(t: Task) {
         AlertDialog.Builder(this)
-            .setMessage("'" + t.text.ifBlank { "(내용 없음)" } + "' 을(를) 삭제할까요?")
+            .setMessage(getString(R.string.delete_confirm, t.text.ifBlank { getString(R.string.no_content) }))
             .setNegativeButton(R.string.cancel, null)
             .setPositiveButton(R.string.delete) { _, _ ->
                 TodoRepo.delete(this, t.id)
@@ -100,7 +99,8 @@ class MainActivity : AppCompatActivity() {
                     reload()
                     Toast.makeText(
                         this,
-                        if (n > 0) "${n}건을 보관함으로 옮겼습니다" else "완료한 할 일이 없습니다",
+                        if (n > 0) resources.getQuantityString(R.plurals.archived_n, n, n)
+                        else getString(R.string.nothing_done),
                         Toast.LENGTH_SHORT
                     ).show()
                     true
@@ -149,7 +149,7 @@ class TaskAdapter(
         holder.check.setImageResource(
             if (t.done) R.drawable.ic_check_on else R.drawable.ic_check_off
         )
-        holder.text.text = t.text.ifBlank { "(내용 없음)" }
+        holder.text.text = t.text.ifBlank { ctx.getString(R.string.no_content) }
         holder.text.paintFlags =
             if (t.done) holder.text.paintFlags or android.graphics.Paint.STRIKE_THRU_TEXT_FLAG
             else holder.text.paintFlags and android.graphics.Paint.STRIKE_THRU_TEXT_FLAG.inv()

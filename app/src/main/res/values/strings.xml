@@ -1,48 +1,141 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 기본(영어). 한국어는 values-ko/strings.xml -->
 <resources>
-    <string name="app_name">할 일</string>
-    <string name="widget_name">할 일 메모</string>
-    <string name="widget_desc">바탕화면에 붙이는 할 일 메모. 위젯에서 바로 체크하고 추가할 수 있습니다.</string>
-    <string name="archive">보관함</string>
-    <string name="add_task">할 일 추가</string>
-    <string name="add_bar">＋  할 일 추가</string>
-    <string name="empty">할 일이 없습니다</string>
-    <string name="hint_task">할 일을 입력하세요</string>
-    <string name="hint_date">9/18, 내일, +7</string>
-    <string name="save">저장</string>
-    <string name="cancel">취소</string>
-    <string name="delete">삭제</string>
-    <string name="restore">복원</string>
-    <string name="clear_all">전체 비우기</string>
-    <string name="archive_done">완료 항목 모두 보관</string>
-    <string name="empty_archive">보관된 할 일이 없습니다</string>
-    <string name="date_help">날짜는 비워두면 기한 없음. 9/18 · 9-18 · 9월18일 · 26.9.18 · 오늘 · 내일 · +7</string>
-    <string name="repeat">반복</string>
-    <string name="repeat_none">없음</string>
-    <string name="repeat_mode_title">반복 방식</string>
-    <string name="repeat_due">기한 기준</string>
-    <string name="repeat_done">체크일 기준</string>
-    <string name="repeat_week">고정 요일</string>
-    <string name="repeat_days_title">며칠마다</string>
-    <string name="repeat_week_title">반복할 요일</string>
-    <string name="repeat_days_hint">숫자 (예: 3)</string>
-    <string name="repeat_help">기한 기준은 늦게 체크해도 주기가 밀리지 않고, 체크일 기준은 마지막으로 한 날부터 셉니다. 반복 항목은 보관함으로 가지 않습니다.</string>
-    <string name="widget_tap_title">위젯 빈 곳 탭 동작</string>
-    <string name="widget_tap_add">할 일 추가</string>
-    <string name="widget_tap_open">앱 열기</string>
-    <string name="empty_tap_add">눌러서 할 일 추가</string>
-    <string name="spacing_title">위젯 줄 간격</string>
-    <string name="star">즐겨찾기</string>
-    <string name="star_hint_off">즐겨찾기 꺼짐</string>
-    <string name="star_hint_on">즐겨찾기 — 맨 위에 표시</string>
-    <string name="sync_title">동기화</string>
-    <string name="sync_account">구글 계정</string>
-    <string name="sync_not_connected">연결 안 됨</string>
-    <string name="sync_connect">구글 계정 연결</string>
-    <string name="sync_disconnect">연결 끊기</string>
-    <string name="sync_last">마지막 동기화</string>
-    <string name="sync_never">아직 한 적 없음</string>
-    <string name="sync_now">지금 동기화</string>
-    <string name="sync_help">같은 구글 계정으로 연결한 기기끼리 할 일 목록이 자동으로 맞춰집니다. 목록은 드라이브의 앱 전용 숨김 공간에만 저장되며, 드라이브 화면에는 보이지 않고 다른 앱도 볼 수 없습니다.\n\n바꾼 내용은 몇 초 안에 올라가고, 다른 기기의 변경은 앱을 열 때·위젯이 갱신될 때·30분마다 받아옵니다. 폰이 절전 상태면 더 늦어질 수 있습니다.</string>
-    <string name="settings_title">설정</string>
+    <string name="app_name">Sticky Todo</string>
+    <string name="widget_name">Sticky Todo</string>
+    <string name="widget_desc">A to-do note for your home screen. Check off and add tasks right from the widget.</string>
+    <string name="archive">Archive</string>
+    <string name="add_task">Add task</string>
+    <string name="add_bar">＋  Add a task</string>
+    <string name="empty">Nothing to do</string>
+    <string name="hint_task">What needs doing?</string>
+    <string name="hint_date">9/18, tomorrow, +7</string>
+    <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
+    <string name="delete">Delete</string>
+    <string name="restore">Restore</string>
+    <string name="clear_all">Clear all</string>
+    <string name="archive_done">Archive all finished</string>
+    <string name="empty_archive">The archive is empty</string>
+    <string name="date_help">Leave the date empty for no due date. 9/18 · 9-18 · 26.9.18 · today · tomorrow · +7</string>
+    <string name="repeat">Repeat</string>
+    <string name="repeat_none">None</string>
+    <string name="repeat_mode_title">Repeat mode</string>
+    <string name="repeat_due">From due date</string>
+    <string name="repeat_done">From check date</string>
+    <string name="repeat_week">Weekdays</string>
+    <string name="repeat_days_title">Every how many days?</string>
+    <string name="repeat_week_title">Repeat on</string>
+    <string name="repeat_days_hint">Number (e.g. 3)</string>
+    <string name="repeat_help">“From due date” keeps the cycle even if you check late; “From check date” counts from the day you last did it. Repeating tasks never go to the archive.</string>
+    <string name="widget_tap_title">Tapping an empty spot</string>
+    <string name="widget_tap_add">Add a task</string>
+    <string name="widget_tap_open">Open the app</string>
+    <string name="empty_tap_add">Tap to add a task</string>
+    <string name="spacing_title">Widget line spacing</string>
+    <string name="star">Star</string>
+    <string name="star_hint_off">Not starred</string>
+    <string name="star_hint_on">Starred — stays on top</string>
+    <string name="sync_title">Sync</string>
+    <string name="sync_account">Google account</string>
+    <string name="sync_not_connected">Not connected</string>
+    <string name="sync_connect">Connect Google account</string>
+    <string name="sync_disconnect">Disconnect</string>
+    <string name="sync_last">Last sync</string>
+    <string name="sync_never">Never</string>
+    <string name="sync_now">Sync now</string>
+    <string name="sync_help">Devices connected with the same Google account keep the same to-do list. The list is stored only in a hidden app folder on your Drive — it doesn’t show up in Drive and other apps can’t read it.\n\nYour changes upload within seconds. Changes from other devices arrive when you open the app, when the widget refreshes, and every 30 minutes. It may take longer while the phone is in power-saving mode.</string>
+    <string name="settings_title">Settings</string>
+
+    <string name="header_title">To-do</string>
+    <string name="no_content">(empty)</string>
+    <string name="mark_done">Done</string>
+    <string name="mark_undone">Not done</string>
+    <string name="archive_clear_confirm">Clear the whole archive? This can’t be undone.</string>
+    <string name="delete_confirm">Delete “%1$s”?</string>
+    <string name="nothing_done">No finished tasks</string>
+    <string name="sec_language">Language</string>
+    <string name="lang_title">Display language</string>
+    <string name="sec_widget">Widget</string>
+    <string name="header_row">Header (title · add button)</string>
+    <string name="hide_done">Hide finished tasks</string>
+    <string name="hide_done_sub">Only in the widget. The app still shows them</string>
+    <string name="opacity_title">Background opacity</string>
+    <string name="font_title">Font size</string>
+    <string name="spacing_row">Line spacing</string>
+    <string name="sec_date">Dates</string>
+    <string name="date_mode_title">Format</string>
+    <string name="weekday_title">Show weekday</string>
+    <string name="weekday_sub">e.g. 10/5(Mon)</string>
+    <string name="sec_cleanup">Cleanup</string>
+    <string name="archive_keep_title">Auto-clear archive</string>
+    <string name="wifi_only">Auto-sync on Wi-Fi only</string>
+    <string name="wifi_only_sub">On mobile data it waits until Wi-Fi is connected</string>
+    <string name="sync_link">Google account · Sync now</string>
+    <string name="sync_connected">Connected</string>
+    <string name="sync_connect_failed">Couldn’t connect: %1$s</string>
+    <string name="sync_cancelled">cancelled</string>
+    <string name="sync_busy">Syncing…</string>
+    <string name="sync_connect_first">Connect a Google account first</string>
+    <string name="sync_disconnect_confirm">Disconnect your Google account?\nThe tasks on this device stay as they are.</string>
+    <string name="sync_time_format">MMM d, HH:mm</string>
+    <string name="sync_err_no_account">No Google account connected</string>
+    <string name="sync_err_consent">Google permission is needed. Reconnect in Settings</string>
+    <string name="sync_err_auth">Authentication failed: %1$s</string>
+    <string name="sync_err_lookup">Drive lookup failed (%1$d) %2$s</string>
+    <string name="sync_err_upload">Upload failed (%1$d) %2$s</string>
+    <string name="sync_err_download">Download failed (%1$d) %2$s</string>
+    <string name="sync_err_network">Network error: %1$s</string>
+    <string name="sync_done">Synced · %1$s</string>
+    <string name="sync_what_none">no changes</string>
+    <string name="sync_what_up">uploaded</string>
+    <string name="sync_what_down">received</string>
+    <string name="sync_what_both">sent and received</string>
+
+    <string-array name="header_labels">
+        <item>Auto (hide when short)</item>
+        <item>Always show</item>
+        <item>Always hide</item>
+    </string-array>
+    <string-array name="opacity_labels">
+        <item>100% (opaque)</item>
+        <item>95% (default)</item>
+        <item>80%</item>
+        <item>60%</item>
+        <item>40%</item>
+        <item>20%</item>
+        <item>0% (fully transparent)</item>
+    </string-array>
+    <string-array name="font_labels">
+        <item>Small</item>
+        <item>Normal (default)</item>
+        <item>Large</item>
+        <item>Extra large</item>
+    </string-array>
+    <string-array name="spacing_labels">
+        <item>Extra narrow</item>
+        <item>Narrow</item>
+        <item>Normal (default)</item>
+        <item>Wide</item>
+        <item>Extra wide</item>
+    </string-array>
+    <string-array name="date_labels">
+        <item>Date (10/5)</item>
+        <item>Days left (D-3)</item>
+        <item>Both (10/5 D-3)</item>
+    </string-array>
+    <string-array name="archive_keep_labels">
+        <item>Off (keep all)</item>
+        <item>Delete after 30 days</item>
+        <item>Delete after 90 days</item>
+    </string-array>
+
+    <plurals name="archived_n">
+        <item quantity="one">Moved %d task to the archive</item>
+        <item quantity="other">Moved %d tasks to the archive</item>
+    </plurals>
+    <plurals name="every_n_days">
+        <item quantity="one">every day</item>
+        <item quantity="other">every %d days</item>
+    </plurals>
 </resources>

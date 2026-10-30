@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">할 일</string>
+    <string name="widget_name">할 일 메모</string>
+    <string name="widget_desc">바탕화면에 붙이는 할 일 메모. 위젯에서 바로 체크하고 추가할 수 있습니다.</string>
+    <string name="archive">보관함</string>
+    <string name="add_task">할 일 추가</string>
+    <string name="add_bar">＋  할 일 추가</string>
+    <string name="empty">할 일이 없습니다</string>
+    <string name="hint_task">할 일을 입력하세요</string>
+    <string name="hint_date">9/18, 내일, +7</string>
+    <string name="save">저장</string>
+    <string name="cancel">취소</string>
+    <string name="delete">삭제</string>
+    <string name="restore">복원</string>
+    <string name="clear_all">전체 비우기</string>
+    <string name="archive_done">완료 항목 모두 보관</string>
+    <string name="empty_archive">보관된 할 일이 없습니다</string>
+    <string name="date_help">날짜는 비워두면 기한 없음. 9/18 · 9-18 · 9월18일 · 26.9.18 · 오늘 · 내일 · +7</string>
+    <string name="repeat">반복</string>
+    <string name="repeat_none">없음</string>
+    <string name="repeat_mode_title">반복 방식</string>
+    <string name="repeat_due">기한 기준</string>
+    <string name="repeat_done">체크일 기준</string>
+    <string name="repeat_week">고정 요일</string>
+    <string name="repeat_days_title">며칠마다</string>
+    <string name="repeat_week_title">반복할 요일</string>
+    <string name="repeat_days_hint">숫자 (예: 3)</string>
+    <string name="repeat_help">기한 기준은 늦게 체크해도 주기가 밀리지 않고, 체크일 기준은 마지막으로 한 날부터 셉니다. 반복 항목은 보관함으로 가지 않습니다.</string>
+    <string name="widget_tap_title">위젯 빈 곳 탭 동작</string>
+    <string name="widget_tap_add">할 일 추가</string>
+    <string name="widget_tap_open">앱 열기</string>
+    <string name="empty_tap_add">눌러서 할 일 추가</string>
+    <string name="spacing_title">위젯 줄 간격</string>
+    <string name="star">즐겨찾기</string>
+    <string name="star_hint_off">즐겨찾기 꺼짐</string>
+    <string name="star_hint_on">즐겨찾기 — 맨 위에 표시</string>
+    <string name="sync_title">동기화</string>
+    <string name="sync_account">구글 계정</string>
+    <string name="sync_not_connected">연결 안 됨</string>
+    <string name="sync_connect">구글 계정 연결</string>
+    <string name="sync_disconnect">연결 끊기</string>
+    <string name="sync_last">마지막 동기화</string>
+    <string name="sync_never">아직 한 적 없음</string>
+    <string name="sync_now">지금 동기화</string>
+    <string name="sync_help">같은 구글 계정으로 연결한 기기끼리 할 일 목록이 자동으로 맞춰집니다. 목록은 드라이브의 앱 전용 숨김 공간에만 저장되며, 드라이브 화면에는 보이지 않고 다른 앱도 볼 수 없습니다.\n\n바꾼 내용은 몇 초 안에 올라가고, 다른 기기의 변경은 앱을 열 때·위젯이 갱신될 때·30분마다 받아옵니다. 폰이 절전 상태면 더 늦어질 수 있습니다.</string>
+    <string name="settings_title">설정</string>
+
+    <string name="header_title">할 일</string>
+    <string name="no_content">(내용 없음)</string>
+    <string name="mark_done">완료</string>
+    <string name="mark_undone">미완료</string>
+    <string name="archive_clear_confirm">보관함을 모두 비울까요? 되돌릴 수 없습니다.</string>
+    <string name="delete_confirm">\'%1$s\' 을(를) 삭제할까요?</string>
+    <string name="nothing_done">완료한 할 일이 없습니다</string>
+    <string name="sec_language">언어</string>
+    <string name="lang_title">화면 언어</string>
+    <string name="sec_widget">위젯</string>
+    <string name="header_row">머리글 (제목·추가 버튼)</string>
+    <string name="hide_done">완료한 항목 숨기기</string>
+    <string name="hide_done_sub">위젯에서만 숨깁니다. 앱에서는 그대로 보입니다</string>
+    <string name="opacity_title">배경 불투명도</string>
+    <string name="font_title">글자 크기</string>
+    <string name="spacing_row">줄 간격</string>
+    <string name="sec_date">날짜</string>
+    <string name="date_mode_title">표시 방식</string>
+    <string name="weekday_title">요일 함께 표시</string>
+    <string name="weekday_sub">예: 10/5(월)</string>
+    <string name="sec_cleanup">정리</string>
+    <string name="archive_keep_title">보관함 자동 비우기</string>
+    <string name="wifi_only">와이파이에서만 자동 동기화</string>
+    <string name="wifi_only_sub">모바일 데이터에서는 기다렸다가 와이파이에 연결되면 맞춥니다</string>
+    <string name="sync_link">구글 계정 · 지금 동기화</string>
+    <string name="sync_connected">연결됨</string>
+    <string name="sync_connect_failed">연결하지 못했습니다: %1$s</string>
+    <string name="sync_cancelled">취소됨</string>
+    <string name="sync_busy">동기화 중…</string>
+    <string name="sync_connect_first">먼저 구글 계정을 연결해 주세요</string>
+    <string name="sync_disconnect_confirm">구글 계정 연결을 끊을까요?\n이 기기의 할 일은 그대로 남습니다.</string>
+    <string name="sync_time_format">M월 d일 HH:mm</string>
+    <string name="sync_err_no_account">구글 계정이 연결되지 않았습니다</string>
+    <string name="sync_err_consent">구글 권한 승인이 필요합니다. 설정에서 다시 연결해 주세요</string>
+    <string name="sync_err_auth">인증 실패: %1$s</string>
+    <string name="sync_err_lookup">드라이브 조회 실패 (%1$d) %2$s</string>
+    <string name="sync_err_upload">올리기 실패 (%1$d) %2$s</string>
+    <string name="sync_err_download">내려받기 실패 (%1$d) %2$s</string>
+    <string name="sync_err_network">통신 오류: %1$s</string>
+    <string name="sync_done">동기화 완료 · %1$s</string>
+    <string name="sync_what_none">변경 없음</string>
+    <string name="sync_what_up">올림</string>
+    <string name="sync_what_down">받아옴</string>
+    <string name="sync_what_both">주고받음</string>
+
+    <string-array name="header_labels">
+        <item>자동 (낮으면 숨김)</item>
+        <item>항상 표시</item>
+        <item>항상 숨김</item>
+    </string-array>
+    <string-array name="opacity_labels">
+        <item>100% (불투명)</item>
+        <item>95% (기본)</item>
+        <item>80%</item>
+        <item>60%</item>
+        <item>40%</item>
+        <item>20%</item>
+        <item>0% (완전 투명)</item>
+    </string-array>
+    <string-array name="font_labels">
+        <item>작게</item>
+        <item>보통 (기본)</item>
+        <item>크게</item>
+        <item>아주 크게</item>
+    </string-array>
+    <string-array name="spacing_labels">
+        <item>아주 좁게</item>
+        <item>좁게</item>
+        <item>보통 (기본)</item>
+        <item>넓게</item>
+        <item>아주 넓게</item>
+    </string-array>
+    <string-array name="date_labels">
+        <item>날짜 (10/5)</item>
+        <item>남은 날 (D-3)</item>
+        <item>둘 다 (10/5 D-3)</item>
+    </string-array>
+    <string-array name="archive_keep_labels">
+        <item>끔 (계속 보관)</item>
+        <item>30일 지나면 삭제</item>
+        <item>90일 지나면 삭제</item>
+    </string-array>
+
+    <plurals name="archived_n">
+        <item quantity="other">%d건을 보관함으로 옮겼습니다</item>
+    </plurals>
+    <plurals name="every_n_days">
+        <item quantity="other">%d일마다</item>
+    </plurals>
+</resources>

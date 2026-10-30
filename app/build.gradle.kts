@@ -33,9 +33,9 @@ android {
         versionCode = buildNumber
         versionName = "1.$buildNumber"
 
-        // 화면 글자는 한국어뿐이다. 라이브러리(AppCompat, 구글 로그인 등)에 딸려 오는
-        // 수십 개 언어의 번역은 넣지 않는다. (기본 영어는 항상 남는다)
-        resourceConfigurations += listOf("ko")
+        // 화면 글자는 영어(기본)와 한국어뿐이다. 라이브러리(AppCompat, 구글 로그인 등)에
+        // 딸려 오는 수십 개 언어의 번역은 넣지 않는다.
+        resourceConfigurations += listOf("en", "ko")
     }
 
     buildTypes {

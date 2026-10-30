@@ -11,7 +11,6 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 
 /**
@@ -20,7 +19,7 @@ import androidx.core.content.ContextCompat
  *  - MODE_EDIT   : 기존 할 일 수정 / 삭제
  *  - MODE_TOGGLE : 화면 없이 완료 토글만 하고 바로 닫힘 (위젯 체크박스)
  */
-class TaskEditActivity : AppCompatActivity() {
+class TaskEditActivity : BaseActivity() {
 
     companion object {
         const val EXTRA_MODE = "mode"
@@ -188,7 +187,7 @@ class TaskEditActivity : AppCompatActivity() {
         val checked = BooleanArray(7) { repeatWeekdays and (1 shl it) != 0 }
         AlertDialog.Builder(this)
             .setTitle(R.string.repeat_week_title)
-            .setMultiChoiceItems(Repeat.SHORT, checked) { _, which, isChecked ->
+            .setMultiChoiceItems(Repeat.names(), checked) { _, which, isChecked ->
                 checked[which] = isChecked
             }
             .setNegativeButton(R.string.cancel, null)
@@ -206,15 +205,18 @@ class TaskEditActivity : AppCompatActivity() {
             .show()
     }
 
+    private fun everyDays() =
+        resources.getQuantityString(R.plurals.every_n_days, repeatDays, repeatDays)
+
     /** 반복 줄에 지금 설정을 적는다 */
     private fun paintRepeat() {
         val text = when {
             repeatMode == Repeat.WEEK && repeatWeekdays != 0 ->
                 getString(R.string.repeat_week) + " · " + Repeat.weekdayText(repeatWeekdays)
             repeatMode == Repeat.DUE && repeatDays > 0 ->
-                getString(R.string.repeat_due) + " · ${repeatDays}일마다"
+                getString(R.string.repeat_due) + " · " + everyDays()
             repeatMode == Repeat.DONE && repeatDays > 0 ->
-                getString(R.string.repeat_done) + " · ${repeatDays}일마다"
+                getString(R.string.repeat_done) + " · " + everyDays()
             else -> getString(R.string.repeat_none)
         }
         val on = repeatMode != Repeat.NONE

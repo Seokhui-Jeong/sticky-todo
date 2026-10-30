@@ -59,6 +59,7 @@ DEFAULT_SETTINGS = {
     "weekday": False,
     "archive_keep": 0,
     "tray_hint_shown": False,
+    "lang": 0,                 # 0 시스템 언어 따르기, 1 한국어, 2 English
 }
 
 DEFAULT_W, DEFAULT_H = 300, 380

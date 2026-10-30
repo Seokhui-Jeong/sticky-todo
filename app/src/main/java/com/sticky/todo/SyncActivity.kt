@@ -6,7 +6,6 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -17,7 +16,7 @@ import java.util.Locale
  * 구글 계정을 연결하면 할 일 목록이 드라이브의 앱 전용 숨김 공간에 보관되고,
  * 같은 계정으로 연결한 다른 기기와 자동으로 맞춰진다.
  */
-class SyncActivity : AppCompatActivity() {
+class SyncActivity : BaseActivity() {
 
     private lateinit var accountView: TextView
     private lateinit var statusView: TextView
@@ -38,7 +37,7 @@ class SyncActivity : AppCompatActivity() {
             runSync()
         } catch (e: Exception) {
             paint()
-            toast("연결하지 못했습니다: ${e.message ?: "취소됨"}")
+            toast(getString(R.string.sync_connect_failed, e.message ?: getString(R.string.sync_cancelled)))
         }
     }
 
@@ -66,7 +65,7 @@ class SyncActivity : AppCompatActivity() {
 
     private fun paint() {
         val on = DriveSync.connected(this)
-        accountView.text = if (on) (DriveSync.email(this) ?: "연결됨")
+        accountView.text = if (on) (DriveSync.email(this) ?: getString(R.string.sync_connected))
         else getString(R.string.sync_not_connected)
         connectBtn.visibility = if (on) View.GONE else View.VISIBLE
         disconnectBtn.visibility = if (on) View.VISIBLE else View.GONE
@@ -74,10 +73,13 @@ class SyncActivity : AppCompatActivity() {
 
         val at = DriveSync.lastSyncAt(this)
         statusView.text = when {
-            busy -> "동기화 중…"
+            busy -> getString(R.string.sync_busy)
             at == 0L -> getString(R.string.sync_never)
             else -> {
-                val f = SimpleDateFormat("M월 d일 HH:mm", Locale.KOREA).format(Date(at))
+                val f = SimpleDateFormat(
+                    getString(R.string.sync_time_format),
+                    if (Lang.english) Locale.ENGLISH else Locale.KOREAN
+                ).format(Date(at))
                 "$f · ${DriveSync.lastMessage(this)}"
             }
         }
@@ -92,7 +94,7 @@ class SyncActivity : AppCompatActivity() {
     private fun runSync() {
         if (busy) return
         if (!DriveSync.connected(this)) {
-            toast("먼저 구글 계정을 연결해 주세요")
+            toast(getString(R.string.sync_connect_first))
             return
         }
         busy = true
@@ -110,9 +112,9 @@ class SyncActivity : AppCompatActivity() {
 
     private fun confirmDisconnect() {
         AlertDialog.Builder(this)
-            .setMessage("구글 계정 연결을 끊을까요?\n이 기기의 할 일은 그대로 남습니다.")
+            .setMessage(R.string.sync_disconnect_confirm)
             .setNegativeButton(R.string.cancel, null)
-            .setPositiveButton("연결 끊기") { _, _ ->
+            .setPositiveButton(R.string.sync_disconnect) { _, _ ->
                 DriveSync.client(this).signOut().addOnCompleteListener {
                     SyncScheduler.cancelAll(this)
                     DriveSync.forgetSyncState(this)

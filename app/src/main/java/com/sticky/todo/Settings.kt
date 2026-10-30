@@ -17,7 +17,6 @@ object Settings {
     const val HEADER_AUTO = 0     // 위젯이 낮으면 숨김 (예전 동작)
     const val HEADER_ALWAYS = 1
     const val HEADER_HIDE = 2
-    val HEADER_LABELS = arrayOf("자동 (낮으면 숨김)", "항상 표시", "항상 숨김")
 
     fun header(ctx: Context): Int = p(ctx).getInt("widget_header", HEADER_AUTO).coerceIn(0, 2)
     fun setHeader(ctx: Context, v: Int) = p(ctx).edit().putInt("widget_header", v).apply()
@@ -31,7 +30,6 @@ object Settings {
     // ── 위젯: 배경 불투명도 ───────────────────────────────
 
     val OPACITY = intArrayOf(100, 95, 80, 60, 40, 20, 0)
-    val OPACITY_LABELS = arrayOf("100% (불투명)", "95% (기본)", "80%", "60%", "40%", "20%", "0% (완전 투명)")
     const val OPACITY_DEFAULT = 1
 
     fun opacityLevel(ctx: Context): Int =
@@ -45,7 +43,6 @@ object Settings {
 
     val FONT_TEXT = floatArrayOf(12f, 13f, 15f, 17f)   // 할 일 글자 (sp)
     val FONT_SMALL = floatArrayOf(10f, 11f, 12f, 14f)  // 날짜·개수 (sp)
-    val FONT_LABELS = arrayOf("작게", "보통 (기본)", "크게", "아주 크게")
     const val FONT_DEFAULT = 1
 
     fun fontLevel(ctx: Context): Int =
@@ -54,7 +51,6 @@ object Settings {
 
     // ── 날짜 표시 ─────────────────────────────────────────
 
-    val DATE_LABELS = arrayOf("날짜 (10/5)", "남은 날 (D-3)", "둘 다 (10/5 D-3)")
 
     fun dateMode(ctx: Context): Int =
         p(ctx).getInt("date_mode", DateStyle.DATE).coerceIn(0, 2)
@@ -69,7 +65,6 @@ object Settings {
     // ── 보관함 자동 비우기 ────────────────────────────────
 
     val ARCHIVE_KEEP_DAYS = intArrayOf(0, 30, 90)        // 0 = 끔
-    val ARCHIVE_KEEP_LABELS = arrayOf("끔 (계속 보관)", "30일 지나면 삭제", "90일 지나면 삭제")
 
     fun archiveKeepLevel(ctx: Context): Int =
         p(ctx).getInt("archive_keep", 0).coerceIn(0, ARCHIVE_KEEP_DAYS.size - 1)

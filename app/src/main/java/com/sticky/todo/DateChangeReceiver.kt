@@ -7,6 +7,7 @@ import android.content.Intent
 /**
  * 자정이 지나거나(시간 변경/재부팅 포함) 하면
  * 기한이 지난 완료 항목을 보관함으로 옮기고 위젯을 새로 그린다.
+ * 폰 언어가 바뀌었을 때도 위젯 글자를 새 언어로 다시 그린다.
  */
 class DateChangeReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {

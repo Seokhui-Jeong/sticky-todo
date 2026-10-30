@@ -65,6 +65,10 @@ class TodoWidget : AppWidgetProvider() {
 
         private fun render(ctx: Context, mgr: AppWidgetManager, widgetId: Int) {
             val rv = RemoteViews(ctx.packageName, R.layout.widget_todo)
+            // 레이아웃 속 글자는 런처가 시스템 언어로 읽으므로, 고른 언어로 직접 넣는다
+            val txt = Lang.wrap(ctx)
+            rv.setTextViewText(R.id.widget_title, txt.getString(R.string.header_title))
+            rv.setContentDescription(R.id.widget_add, txt.getString(R.string.add_task))
 
             val left = TodoRepo.remaining(ctx)
             rv.setTextViewText(R.id.widget_count, if (left > 0) left.toString() else "")
@@ -122,7 +126,7 @@ class TodoWidget : AppWidgetProvider() {
 
             rv.setTextViewText(
                 R.id.widget_empty,
-                ctx.getString(if (tapIsAdd) R.string.empty_tap_add else R.string.empty)
+                txt.getString(if (tapIsAdd) R.string.empty_tap_add else R.string.empty)
             )
 
             // 목록 어댑터 (위젯마다 별도 data URI 로 구분)

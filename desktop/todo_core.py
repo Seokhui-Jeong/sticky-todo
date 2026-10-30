@@ -24,6 +24,17 @@ DONE = "done"   # 체크일 기준 — 체크한 날로부터 n일 뒤
 WEEK = "week"   # 고정 요일 — 정해둔 요일마다
 
 WEEKDAY_SHORT = ["월", "화", "수", "목", "금", "토", "일"]
+WEEKDAY_EN = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+WEEKDAY_EN2 = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]   # 목록처럼 자리가 좁을 때
+
+# 화면 언어. 앱이 설정에 맞춰 바꾼다 (i18n.set_lang). 저장 형식과는 상관없다.
+ENGLISH = False
+
+
+def weekday_names(compact=False):
+    if not ENGLISH:
+        return WEEKDAY_SHORT
+    return WEEKDAY_EN2 if compact else WEEKDAY_EN
 
 
 def wd_bit(d):
@@ -39,8 +50,9 @@ def weekday_text(mask, sep="·"):
     if mask == 0:
         return ""
     if mask & 0b1111111 == 0b1111111:
-        return "매일"
-    return sep.join(WEEKDAY_SHORT[i] for i in range(7) if mask & (1 << i))
+        return "Daily" if ENGLISH else "매일"
+    names = weekday_names(compact=(sep == ""))
+    return sep.join(names[i] for i in range(7) if mask & (1 << i))
 
 
 def now_ms():
@@ -228,7 +240,7 @@ def dday(d, today=None):
     today = today or _dt.date.today()
     n = (d - today).days
     if n == 0:
-        return "오늘"
+        return "Today" if ENGLISH else "오늘"
     return "D-%d" % n if n > 0 else "D+%d" % -n
 
 
@@ -239,7 +251,7 @@ DATE_BOTH = 2
 
 
 def date_text(d, today=None, mode=DATE_PLAIN, weekday=False):
-    plain = format_date(d, today) + ("(%s)" % WEEKDAY_SHORT[d.weekday()] if weekday else "")
+    plain = format_date(d, today) + ("(%s)" % weekday_names()[d.weekday()] if weekday else "")
     if mode == DATE_DDAY:
         return dday(d, today)
     if mode == DATE_BOTH:

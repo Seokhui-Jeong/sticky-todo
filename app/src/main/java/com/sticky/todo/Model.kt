@@ -20,13 +20,23 @@ object Repeat {
     fun has(mask: Int, d: DayOfWeek): Boolean = mask and bit(d) != 0
 
     val SHORT = arrayOf("월", "화", "수", "목", "금", "토", "일")
+    val SHORT_EN = arrayOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+    val SHORT_EN2 = arrayOf("Mo", "Tu", "We", "Th", "Fr", "Sa", "Su")
+
+    /** 화면 언어에 맞는 요일 이름. compact 는 영어일 때 두 글자 (목록에 붙여 쓸 때) */
+    fun names(compact: Boolean = false): Array<String> = when {
+        !Lang.english -> SHORT
+        compact -> SHORT_EN2
+        else -> SHORT_EN
+    }
 
     /** 요일 묶음을 '월·수·금' 처럼. 목록에서는 자리를 아끼려고 sep 을 비운다. */
     fun weekdayText(mask: Int, sep: String = "·"): String {
         if (mask == 0) return ""
-        if (mask and 0b1111111 == 0b1111111) return "매일"
+        if (mask and 0b1111111 == 0b1111111) return if (Lang.english) "Daily" else "매일"
+        val n = names(compact = sep.isEmpty())
         return (1..7).filter { mask and (1 shl (it - 1)) != 0 }
-            .joinToString(sep) { SHORT[it - 1] }
+            .joinToString(sep) { n[it - 1] }
     }
 }
 
@@ -215,7 +225,7 @@ object Dates {
     fun dday(d: LocalDate, today: LocalDate = LocalDate.now()): String {
         val n = ChronoUnit.DAYS.between(today, d)
         return when {
-            n == 0L -> "오늘"
+            n == 0L -> if (Lang.english) "Today" else "오늘"
             n > 0 -> "D-$n"
             else -> "D+${-n}"
         }
@@ -224,7 +234,7 @@ object Dates {
     /** 표시 설정에 맞춘 날짜 글자 */
     fun label(d: LocalDate, today: LocalDate = LocalDate.now(), style: DateStyle = DateStyle.DEFAULT): String {
         val plain = format(d, today) +
-            if (style.weekday) "(" + Repeat.SHORT[d.dayOfWeek.value - 1] + ")" else ""
+            if (style.weekday) "(" + Repeat.names()[d.dayOfWeek.value - 1] + ")" else ""
         return when (style.mode) {
             DateStyle.DDAY -> dday(d, today)
             DateStyle.BOTH -> "$plain ${dday(d, today)}"

@@ -6,11 +6,10 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 
-class ArchiveActivity : AppCompatActivity() {
+class ArchiveActivity : BaseActivity() {
 
     private lateinit var list: RecyclerView
     private lateinit var emptyView: TextView
@@ -40,7 +39,7 @@ class ArchiveActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.clear).setOnClickListener {
             if (TodoRepo.archived(this).isEmpty()) return@setOnClickListener
             AlertDialog.Builder(this)
-                .setMessage("보관함을 모두 비울까요? 되돌릴 수 없습니다.")
+                .setMessage(R.string.archive_clear_confirm)
                 .setNegativeButton(R.string.cancel, null)
                 .setPositiveButton(R.string.delete) { _, _ ->
                     TodoRepo.clearArchive(this)
@@ -85,10 +84,11 @@ class ArchiveAdapter(
 
     override fun onBindViewHolder(holder: VH, position: Int) {
         val t = items[position]
-        holder.text.text = t.text.ifBlank { "(내용 없음)" }
+        val ctx = holder.itemView.context
+        holder.text.text = t.text.ifBlank { ctx.getString(R.string.no_content) }
 
-        val mark = if (t.done) "완료" else "미완료"
-        val dateText = dateLabel(t, style = Settings.dateStyle(holder.itemView.context))
+        val mark = ctx.getString(if (t.done) R.string.mark_done else R.string.mark_undone)
+        val dateText = dateLabel(t, style = Settings.dateStyle(ctx))
         holder.sub.text = listOf(mark, dateText).filter { it.isNotBlank() }.joinToString(" · ")
 
         holder.restore.setOnClickListener { onRestore(t) }

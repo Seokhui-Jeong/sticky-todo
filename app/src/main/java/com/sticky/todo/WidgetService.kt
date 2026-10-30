@@ -25,6 +25,7 @@ private class TodoFactory(private val ctx: Context) : RemoteViewsService.RemoteV
     private var textSp: Float = Settings.FONT_TEXT[Settings.FONT_DEFAULT]
     private var smallSp: Float = Settings.FONT_SMALL[Settings.FONT_DEFAULT]
     private var dateStyle: DateStyle = DateStyle.DEFAULT
+    private var emptyLabel: String = ""
 
     override fun onCreate() {}
 
@@ -39,6 +40,7 @@ private class TodoFactory(private val ctx: Context) : RemoteViewsService.RemoteV
         textSp = Settings.FONT_TEXT[font]
         smallSp = Settings.FONT_SMALL[font]
         dateStyle = Settings.dateStyle(ctx)
+        emptyLabel = Lang.wrap(ctx).getString(R.string.no_content)
 
         val level = TodoRepo.widgetSpacing(ctx)
         padDp = TodoRepo.SPACING_PAD[level]
@@ -79,7 +81,7 @@ private class TodoFactory(private val ctx: Context) : RemoteViewsService.RemoteV
             if (t.star && !t.done) android.view.View.VISIBLE else android.view.View.GONE
         )
 
-        val label = t.text.ifBlank { "(내용 없음)" }
+        val label = t.text.ifBlank { emptyLabel }
         if (t.done) {
             val sp = SpannableString(label)
             sp.setSpan(StrikethroughSpan(), 0, label.length,

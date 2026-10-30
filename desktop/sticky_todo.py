@@ -25,6 +25,8 @@ import time
 import tkinter as tk
 
 import todo_core as core
+import i18n
+from i18n import T
 import store as st
 import drive_sync as ds
 
@@ -340,17 +342,17 @@ class Tray(object):
 
         M = pystray.MenuItem
         menu = pystray.Menu(
-            M("메모 열기", post("show"), default=True),
-            M("트레이로 숨기기", post("hide"), visible=lambda item: not app.hidden),
+            M(lambda item: T("메모 열기"), post("show"), default=True),
+            M(lambda item: T("트레이로 숨기기"), post("hide"), visible=lambda item: not app.hidden),
             pystray.Menu.SEPARATOR,
-            M("지금 동기화", post("sync"), visible=lambda item: app.account.connected()),
-            M("보관함", post("archive")),
-            M("설정", post("settings")),
+            M(lambda item: T("지금 동기화"), post("sync"), visible=lambda item: app.account.connected()),
+            M(lambda item: T("보관함"), post("archive")),
+            M(lambda item: T("설정"), post("settings")),
             pystray.Menu.SEPARATOR,
-            M("종료", post("quit")),
+            M(lambda item: T("종료"), post("quit")),
         )
         try:
-            self.icon = pystray.Icon("StickyTodo", image, APP_TITLE, menu)
+            self.icon = pystray.Icon("StickyTodo", image, T(APP_TITLE), menu)
             threading.Thread(target=self._run, daemon=True).start()
         except Exception:
             log_exception("트레이 아이콘 만들기 실패")
@@ -365,10 +367,19 @@ class Tray(object):
     def available(self):
         return self.icon is not None
 
+    def relabel(self):
+        """화면 언어를 바꾼 뒤 메뉴·알림 글자를 새로 고친다"""
+        try:
+            if self.icon is not None:
+                self.icon.title = T(APP_TITLE)
+                self.icon.update_menu()
+        except Exception:
+            pass
+
     def notify(self, text):
         try:
             if self.icon is not None:
-                self.icon.notify(text, APP_TITLE)
+                self.icon.notify(text, T(APP_TITLE))
         except Exception:
             pass
 
@@ -458,6 +469,7 @@ class App(object):
     def __init__(self, root):
         self.root = root
         self.store = st.Store()
+        i18n.set_lang(self.store.setting("lang"))
         self.account = ds.Account()
         self.events = queue.Queue()      # 다른 스레드 → 화면 스레드
         self.rows = []
@@ -540,6 +552,13 @@ class App(object):
         except tk.TclError:
             pass
 
+    def apply_language(self):
+        """설정의 화면 언어를 다시 읽어 메인 창과 트레이에 반영한다"""
+        i18n.set_lang(self.store.setting("lang"))
+        self.root.title(T(APP_TITLE))
+        self.tray.relabel()
+        self.build_ui()
+
     def build_ui(self):
         """테마·글자 크기가 바뀌면 통째로 다시 만든다"""
         for w in self.root.winfo_children():
@@ -558,7 +577,7 @@ class App(object):
         head.pack_propagate(False)
         self.head = head
 
-        self.title_lbl = tk.Label(head, text=HEADER_TITLE, bg=p["head"], fg=p["text"],
+        self.title_lbl = tk.Label(head, text=T(HEADER_TITLE), bg=p["head"], fg=p["text"],
                                   font=self.font_title, anchor="w")
         self.title_lbl.pack(side="left", padx=(10, 4))
         self.count_lbl = tk.Label(head, text="", bg=p["head"], fg=p["muted"], font=self.font_small)
@@ -604,7 +623,7 @@ class App(object):
         foot = tk.Frame(outer, bg=p["bg"])
         foot.pack(fill="x", side="bottom")
         tk.Frame(foot, bg=p["divider"], height=1).pack(fill="x")
-        add = tk.Label(foot, text="＋  할 일 추가", bg=p["bg"], fg=p["muted"],
+        add = tk.Label(foot, text=T("＋  할 일 추가"), bg=p["bg"], fg=p["muted"],
                        font=self.font_small, cursor="hand2", anchor="w")
         add.pack(side="left", padx=10, pady=6)
         add.bind("<Button-1>", lambda e: self.add_item())
@@ -873,7 +892,7 @@ class App(object):
         self.root.withdraw()
         if not self.store.setting("tray_hint_shown"):
             self.store.set_setting("tray_hint_shown", True)
-            self.tray.notify("메모를 트레이로 숨겼습니다. 작업 표시줄 오른쪽 ^ 의 아이콘을 누르면 다시 열립니다.")
+            self.tray.notify(T("메모를 트레이로 숨겼습니다. 작업 표시줄 오른쪽 ^ 의 아이콘을 누르면 다시 열립니다."))
 
     def show_window(self):
         """트레이 아이콘을 누르거나 두 번째로 실행했을 때 — 숨어 있던 창을 앞으로"""
@@ -892,20 +911,20 @@ class App(object):
 
     def show_menu(self, event=None):
         m = tk.Menu(self.root, tearoff=0, font=self.font_small)
-        m.add_command(label="보관함 열기  (%d)" % len(self.store.archive), command=self.open_archive)
-        m.add_command(label="완료 항목 모두 보관", command=self.archive_all_done)
+        m.add_command(label=T("보관함 열기  (%d)") % len(self.store.archive), command=self.open_archive)
+        m.add_command(label=T("완료 항목 모두 보관"), command=self.archive_all_done)
         m.add_separator()
-        m.add_command(label="설정…", command=self.open_settings)
+        m.add_command(label=T("설정…"), command=self.open_settings)
         if self.tray.available():
-            m.add_command(label="트레이로 숨기기", command=self.minimize)
+            m.add_command(label=T("트레이로 숨기기"), command=self.minimize)
         if self.account.connected():
-            m.add_command(label="지금 동기화", command=lambda: self.request_sync(0))
+            m.add_command(label=T("지금 동기화"), command=lambda: self.request_sync(0))
         m.add_separator()
-        m.add_command(label="크기 초기화 (%d × %d)" % (st.DEFAULT_W, st.DEFAULT_H),
+        m.add_command(label=T("크기 초기화 (%d × %d)") % (st.DEFAULT_W, st.DEFAULT_H),
                       command=self.reset_size)
-        m.add_command(label="저장 폴더 열기", command=self.open_folder)
+        m.add_command(label=T("저장 폴더 열기"), command=self.open_folder)
         m.add_separator()
-        m.add_command(label="종료", command=self.quit)
+        m.add_command(label=T("종료"), command=self.quit)
         try:
             if event is not None and getattr(event, "x_root", None):
                 m.tk_popup(event.x_root, event.y_root)
@@ -956,7 +975,7 @@ class App(object):
         for t in items:
             self.rows.append(self._make_row(t, today))
         if not items:
-            empty = tk.Label(self.list_frame, text="할 일이 없습니다\n두 번 눌러 추가", bg=self.pal["bg"],
+            empty = tk.Label(self.list_frame, text=T("할 일이 없습니다\n두 번 눌러 추가"), bg=self.pal["bg"],
                              fg=self.pal["nodate"], font=self.font_small, justify="center")
             empty.pack(pady=24)
             empty.bind("<Double-Button-1>", lambda e: self.add_item())
@@ -1139,11 +1158,11 @@ class App(object):
         if t is None:
             return
         m = tk.Menu(self.root, tearoff=0, font=self.font_small)
-        m.add_command(label="자세히 편집 (반복 · 즐겨찾기)…", command=lambda: self.open_editor(tid))
-        m.add_command(label="즐겨찾기 해제" if t.star else "즐겨찾기", command=lambda: self.toggle_star(tid))
-        m.add_command(label="체크 해제" if t.done else "완료로 체크", command=lambda: self.toggle_done(tid))
+        m.add_command(label=T("자세히 편집 (반복 · 즐겨찾기)…"), command=lambda: self.open_editor(tid))
+        m.add_command(label=T("즐겨찾기 해제") if t.star else T("즐겨찾기"), command=lambda: self.toggle_star(tid))
+        m.add_command(label=T("체크 해제") if t.done else T("완료로 체크"), command=lambda: self.toggle_done(tid))
         m.add_separator()
-        m.add_command(label="삭제", command=lambda: self.delete_item(tid))
+        m.add_command(label=T("삭제"), command=lambda: self.delete_item(tid))
         try:
             m.tk_popup(event.x_root, event.y_root)
         finally:
@@ -1252,7 +1271,7 @@ class App(object):
             changed = self.store.apply_merged(final)
             if changed:
                 self.store.run_auto_archive()
-                self.account.record(True, "동기화 완료 · 받아옴")
+                self.account.record(True, T("동기화 완료 · 받아옴"))
                 self.refresh()
                 if self.archive_win:
                     self.archive_win.render()
@@ -1354,9 +1373,9 @@ class App(object):
         if n:
             from tkinter import messagebox
             if messagebox.askyesno(
-                    APP_TITLE,
-                    "예전에 쓰던 바탕화면 메모의 할 일 %d건이 있습니다.\n이 앱으로 가져올까요?\n\n"
-                    "구글 계정을 연결하면 폰 목록에도 함께 들어갑니다." % n,
+                    T(APP_TITLE),
+                    T("예전에 쓰던 바탕화면 메모의 할 일 %d건이 있습니다.\n이 앱으로 가져올까요?\n\n"
+                    "구글 계정을 연결하면 폰 목록에도 함께 들어갑니다.") % n,
                     parent=self.root):
                 self.store.import_old()
                 self.store.run_auto_archive()
@@ -1364,7 +1383,7 @@ class App(object):
                 self.build_ui()
                 hide_from_taskbar(self.root)
         if replace_old_startup():
-            msgs.append("윈도우를 켤 때 예전 메모 대신 이 앱이 열리도록 바꿨습니다.")
+            msgs.append(T("윈도우를 켤 때 예전 메모 대신 이 앱이 열리도록 바꿨습니다."))
         if msgs:
             from tkinter import messagebox
             messagebox.showinfo(APP_TITLE, "\n".join(msgs), parent=self.root)
@@ -1461,7 +1480,7 @@ REPEAT_CHOICES = [(core.NONE, "없음"), (core.DUE, "기한 기준"), (core.DONE
 
 class EditDialog(Popup):
     def __init__(self, app, tid):
-        Popup.__init__(self, app, "할 일 편집" if tid else "할 일 추가", 350, 440, modal=True)
+        Popup.__init__(self, app, T("할 일 편집") if tid else T("할 일 추가"), 350, 440, modal=True)
         self.tid = tid
         t = app.store.find(tid) if tid else None
         self.t = t
@@ -1473,14 +1492,14 @@ class EditDialog(Popup):
         f = tk.Frame(self.win, bg=p["bg"])
         f.pack(fill="both", expand=True, padx=16, pady=14)
 
-        self.label(f, "할 일", muted=True, small=True).pack(anchor="w")
+        self.label(f, T("할 일", en="Task"), muted=True, small=True).pack(anchor="w")
         self.text = tk.Entry(f, bd=0, bg=p["field"], fg=p["text"], insertbackground=p["text"],
                              font=app.font, highlightthickness=1, highlightbackground=p["border"],
                              highlightcolor=p["accent"])
         self.text.pack(fill="x", ipady=5, pady=(2, 10))
         self.text.insert(0, t.text if t else "")
 
-        self.label(f, "기한", muted=True, small=True).pack(anchor="w")
+        self.label(f, T("기한"), muted=True, small=True).pack(anchor="w")
         self.date = tk.Entry(f, bd=0, bg=p["field"], fg=p["text"], insertbackground=p["text"],
                              font=app.font, highlightthickness=1, highlightbackground=p["border"],
                              highlightcolor=p["accent"])
@@ -1488,7 +1507,7 @@ class EditDialog(Popup):
         if t:
             d = t.local_date()
             self.date.insert(0, core.format_date(d) if d else t.date)
-        self.label(f, "9/18 · 9-18 · 26.9.18 · 오늘 · 내일 · +7  (비우면 기한 없음)",
+        self.label(f, T("9/18 · 9-18 · 26.9.18 · 오늘 · 내일 · +7  (비우면 기한 없음)"),
                    muted=True, small=True, wraplength=310, justify="left").pack(anchor="w", pady=(0, 10))
 
         # 즐겨찾기
@@ -1504,12 +1523,12 @@ class EditDialog(Popup):
         self.mode = t.repeatMode if (t and t.repeating()) else core.NONE
         self.days = tk.StringVar(value=str(t.repeatDays) if (t and t.repeatDays) else "7")
         self.mask = t.repeatWeekdays if t else 0
-        self.label(f, "반복", muted=True, small=True).pack(anchor="w")
+        self.label(f, T("반복"), muted=True, small=True).pack(anchor="w")
         mrow = tk.Frame(f, bg=p["bg"])
         mrow.pack(fill="x", pady=(2, 6))
         self.mode_btns = {}
         for key, name in REPEAT_CHOICES:
-            b = tk.Label(mrow, text=name, font=app.font_small, cursor="hand2", padx=7, pady=3)
+            b = tk.Label(mrow, text=T(name), font=app.font_small, cursor="hand2", padx=7, pady=3)
             b.pack(side="left", padx=(0, 4))
             b.bind("<Button-1>", lambda e, k=key: self._set_mode(k))
             self.mode_btns[key] = b
@@ -1525,11 +1544,11 @@ class EditDialog(Popup):
                                    validatecommand=vcmd, highlightthickness=1,
                                    highlightbackground=p["border"], highlightcolor=p["accent"])
         self.days_entry.pack(side="left", ipady=3)
-        self.label(self.days_row, " 일마다").pack(side="left")
+        self.label(self.days_row, T(" 일마다")).pack(side="left")
         # 요일
         self.week_row = tk.Frame(self.detail, bg=p["bg"])
         self.wd_btns = []
-        for i, name in enumerate(core.WEEKDAY_SHORT):
+        for i, name in enumerate(core.weekday_names()):
             b = tk.Label(self.week_row, text=name, font=app.font_small, cursor="hand2",
                          width=3, pady=3)
             b.pack(side="left", padx=(0, 3))
@@ -1540,11 +1559,11 @@ class EditDialog(Popup):
         self._paint_mode()
 
         # 단추
-        flat_button(brow, "저장", self.save, p, fg="white", bg=p["accent"],
+        flat_button(brow, T("저장"), self.save, p, fg="white", bg=p["accent"],
                     font=app.font_title).pack(side="right")
-        flat_button(brow, "취소", self.close, p, font=app.font).pack(side="right", padx=6)
+        flat_button(brow, T("취소"), self.close, p, font=app.font).pack(side="right", padx=6)
         if t:
-            flat_button(brow, "삭제", self.delete, p, fg=p["over"], font=app.font).pack(side="left")
+            flat_button(brow, T("삭제"), self.delete, p, fg=p["over"], font=app.font).pack(side="left")
 
         self.win.bind("<Return>", lambda e: self.save())
         self._fit()
@@ -1557,9 +1576,9 @@ class EditDialog(Popup):
     def _paint_star(self):
         p = self.pal
         if self.star:
-            self.star_lbl.configure(text="★  즐겨찾기 — 맨 위에 표시", fg=p["star"])
+            self.star_lbl.configure(text=T("★  즐겨찾기 — 맨 위에 표시"), fg=p["star"])
         else:
-            self.star_lbl.configure(text="☆  즐겨찾기 꺼짐", fg=p["muted"])
+            self.star_lbl.configure(text=T("☆  즐겨찾기 꺼짐"), fg=p["muted"])
 
     def _set_mode(self, key):
         self.mode = key
@@ -1585,16 +1604,16 @@ class EditDialog(Popup):
         if self.mode in (core.DUE, core.DONE):
             self.days_row.pack(anchor="w", pady=(2, 4))
             self.help.configure(text=(
-                "기한이 지나면 다음 날 체크가 풀리고 기한이 n일 뒤로 옮겨집니다. 늦게 체크해도 주기가 밀리지 않습니다."
+                T("기한이 지나면 다음 날 체크가 풀리고 기한이 n일 뒤로 옮겨집니다. 늦게 체크해도 주기가 밀리지 않습니다.")
                 if self.mode == core.DUE else
-                "체크한 날로부터 n일이 지나면 다시 할 일로 돌아옵니다."))
+                T("체크한 날로부터 n일이 지나면 다시 할 일로 돌아옵니다.")))
             self.help.pack(anchor="w")
         elif self.mode == core.WEEK:
             self.week_row.pack(anchor="w", pady=(2, 4))
             for i, b in enumerate(self.wd_btns):
                 on = self.mask & (1 << i)
                 b.configure(bg=p["accent"] if on else p["button"], fg="white" if on else p["text"])
-            self.help.configure(text="정해둔 요일마다 돌아옵니다. 반복 항목은 보관함으로 가지 않습니다.")
+            self.help.configure(text=T("정해둔 요일마다 돌아옵니다. 반복 항목은 보관함으로 가지 않습니다."))
             self.help.pack(anchor="w")
         self._fit()
 
@@ -1653,12 +1672,12 @@ class EditDialog(Popup):
 
 class ArchiveWindow(Popup):
     def __init__(self, app):
-        Popup.__init__(self, app, "보관함 — " + APP_TITLE, 360, 440)
+        Popup.__init__(self, app, T("보관함 — ") + T(APP_TITLE), 360, 440)
         p = self.pal
         head = tk.Frame(self.win, bg=p["bg"])
         head.pack(fill="x", padx=14, pady=(12, 6))
-        tk.Label(head, text="보관함", bg=p["bg"], fg=p["text"], font=app.font_big).pack(side="left")
-        clear = tk.Label(head, text="전체 비우기", bg=p["bg"], fg=p["muted"],
+        tk.Label(head, text=T("보관함"), bg=p["bg"], fg=p["text"], font=app.font_big).pack(side="left")
+        clear = tk.Label(head, text=T("전체 비우기"), bg=p["bg"], fg=p["muted"],
                          font=app.font_small, cursor="hand2")
         clear.pack(side="right")
         clear.bind("<Button-1>", lambda e: self.clear())
@@ -1681,7 +1700,7 @@ class ArchiveWindow(Popup):
         a = self.app
         arch = a.store.archive
         if not arch:
-            tk.Label(self.inner, text="보관된 할 일이 없습니다", bg=p["bg"], fg=p["muted"],
+            tk.Label(self.inner, text=T("보관된 할 일이 없습니다"), bg=p["bg"], fg=p["muted"],
                      font=a.font_small).pack(pady=24)
         mode, wd = a._date_style()
         for t in arch:
@@ -1690,14 +1709,14 @@ class ArchiveWindow(Popup):
             tk.Label(fr, text="✓" if t.done else "·", bg=p["bg"],
                      fg=p["accent"] if t.done else p["muted"], font=a.font_small,
                      width=2).pack(side="left")
-            tk.Label(fr, text=t.text or "(내용 없음)", bg=p["bg"], fg=p["done"], font=a.font_small,
+            tk.Label(fr, text=t.text or T("(내용 없음)"), bg=p["bg"], fg=p["done"], font=a.font_small,
                      anchor="w").pack(side="left", fill="x", expand=True)
             tk.Label(fr, text=core.date_label(t, None, mode, wd), bg=p["bg"], fg=p["muted"],
                      font=a.font_small).pack(side="left", padx=6)
-            rb = tk.Label(fr, text="복원", bg=p["bg"], fg=p["accent"], font=a.font_small,
+            rb = tk.Label(fr, text=T("복원"), bg=p["bg"], fg=p["accent"], font=a.font_small,
                           cursor="hand2")
             rb.pack(side="left", padx=(0, 4))
-            db = tk.Label(fr, text="삭제", bg=p["bg"], fg=p["over"], font=a.font_small,
+            db = tk.Label(fr, text=T("삭제"), bg=p["bg"], fg=p["over"], font=a.font_small,
                           cursor="hand2")
             db.pack(side="left", padx=(0, 6))
             rb.bind("<Button-1>", lambda e, i=t.id: self._restore(i))
@@ -1715,7 +1734,7 @@ class ArchiveWindow(Popup):
         from tkinter import messagebox
         if not self.app.store.archive:
             return
-        if messagebox.askyesno("보관함", "보관함을 모두 비울까요?", parent=self.win):
+        if messagebox.askyesno(T("보관함"), T("보관함을 모두 비울까요?"), parent=self.win):
             self.app.store.clear_archive()
             self.app.changed()
 
@@ -1726,7 +1745,7 @@ class ArchiveWindow(Popup):
 
 class SettingsWindow(Popup):
     def __init__(self, app):
-        Popup.__init__(self, app, "설정 — " + APP_TITLE, 380, 600)
+        Popup.__init__(self, app, T("설정 — ") + T(APP_TITLE), 380, 600)
         self.build()
 
     def close(self):
@@ -1742,29 +1761,34 @@ class SettingsWindow(Popup):
         self.win.configure(bg=p["bg"])
         self.box = self.scroller(self.win)
 
-        self.section("창")
-        self.pick("창 순서", ["항상 앞 (기본)", "다른 창과 순서 바뀜"],
+        self.section(T("언어"))
+        self.pick(T("화면 언어"), i18n.LANG_LABELS,
+                  lambda: s._level("lang", i18n.LANG_LABELS),
+                  self._set_lang)
+
+        self.section(T("창"))
+        self.pick(T("창 순서"), [T("항상 앞 (기본)"), T("다른 창과 순서 바뀜")],
                   lambda: 0 if s.setting("topmost") else 1,
                   lambda i: self._set_topmost(i == 0))
-        self.choice("창 불투명도", st.OPACITY_LABELS, "opacity", self._window_changed)
-        self.choice("테마", st.THEME_LABELS, "theme", self._look_changed)
-        self.choice("글자 크기", st.FONT_LABELS, "font", self._look_changed)
-        self.choice("줄 간격", st.SPACING_LABELS, "spacing", lambda: a.refresh(force=True))
-        self.toggle("윈도우 시작 시 실행",
-                    "작업 관리자 '시작 앱'에서 꺼져 있습니다. 켜면 함께 풀립니다"
+        self.choice(T("창 불투명도"), st.OPACITY_LABELS, "opacity", self._window_changed)
+        self.choice(T("테마"), st.THEME_LABELS, "theme", self._look_changed)
+        self.choice(T("글자 크기"), st.FONT_LABELS, "font", self._look_changed)
+        self.choice(T("줄 간격"), st.SPACING_LABELS, "spacing", lambda: a.refresh(force=True))
+        self.toggle(T("윈도우 시작 시 실행"),
+                    T("작업 관리자 '시작 앱'에서 꺼져 있습니다. 켜면 함께 풀립니다")
                     if (_run_value(RUN_NAME) is not None and _approved_disabled()) else "",
                     startup_enabled, lambda v: set_startup(v))
 
-        self.section("날짜")
-        self.choice("표시 방식", st.DATE_LABELS, "date_mode", lambda: self._dates_changed())
-        self.toggle("요일 함께 표시", "예: 10/5(월)", lambda: s.setting("weekday"),
+        self.section(T("날짜"))
+        self.choice(T("표시 방식"), st.DATE_LABELS, "date_mode", lambda: self._dates_changed())
+        self.toggle(T("요일 함께 표시"), T("예: 10/5(월)"), lambda: s.setting("weekday"),
                     lambda v: (s.set_setting("weekday", v), self._dates_changed()))
 
-        self.section("정리")
-        self.choice("보관함 자동 비우기", st.ARCHIVE_KEEP_LABELS, "archive_keep",
+        self.section(T("정리"))
+        self.choice(T("보관함 자동 비우기"), st.ARCHIVE_KEEP_LABELS, "archive_keep",
                     lambda: a.changed())
 
-        self.section("동기화")
+        self.section(T("동기화"))
         self.acct = tk.Frame(self.box, bg=p["bg"])
         self.acct.pack(fill="x", padx=16, pady=(4, 0))
         self.paint_account()
@@ -1806,6 +1830,7 @@ class SettingsWindow(Popup):
         self.pick(title, labels, lambda: s._level(key, labels), set_)
 
     def pick(self, title, labels, get, set_):
+        labels = [T(x) for x in labels]
         p = self.pal
         row = self._row(title, "")
         cur = max(0, min(len(labels) - 1, int(get())))
@@ -1843,6 +1868,18 @@ class SettingsWindow(Popup):
         self.app.build_ui()
         self.build()
 
+    def _set_lang(self, i):
+        self.app.store.set_setting("lang", i)
+        self.app.apply_language()          # 메인 창·트레이를 새 언어로 다시 그린다
+        self.win.title(T("설정 — ") + T(APP_TITLE))
+        self.build()
+        if self.app.archive_win:
+            try:
+                self.app.archive_win.win.title(T("보관함 — ") + T(APP_TITLE))
+                self.app.archive_win.render()
+            except tk.TclError:
+                pass
+
     def _dates_changed(self):
         self.app.refresh(force=True)
         if self.app.archive_win:
@@ -1862,23 +1899,29 @@ class SettingsWindow(Popup):
         acc = a.account
         f = a.font
         if not ds.available():
-            tk.Label(box, text="이 버전에는 구글 연결 정보가 들어 있지 않습니다.", bg=p["bg"],
+            tk.Label(box, text=T("이 버전에는 구글 연결 정보가 들어 있지 않습니다."), bg=p["bg"],
                      fg=p["muted"], font=a.font_small, wraplength=320, justify="left",
                      anchor="w").pack(fill="x")
             return
 
-        tk.Label(box, text="구글 계정", bg=p["bg"], fg=p["muted"], font=a.font_small,
+        tk.Label(box, text=T("구글 계정"), bg=p["bg"], fg=p["muted"], font=a.font_small,
                  anchor="w").pack(fill="x")
-        tk.Label(box, text=(acc.email or "연결됨") if acc.connected() else "연결 안 됨",
+        tk.Label(box, text=(acc.email or T("연결됨")) if acc.connected() else T("연결 안 됨"),
                  bg=p["bg"], fg=p["text"], font=a.font_big, anchor="w").pack(fill="x", pady=(0, 6))
 
         if acc.connected():
             lt = time.localtime(acc.last_at)
-            when = ("%d월 %d일 %02d:%02d" % (lt.tm_mon, lt.tm_mday, lt.tm_hour, lt.tm_min)) \
-                if acc.last_at else "아직 한 적 없음"
-            status = "동기화 중…" if a._syncing else (
+            if not acc.last_at:
+                when = T("아직 한 적 없음")
+            elif i18n.is_english():
+                when = "%s %d, %02d:%02d" % (("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug",
+                                              "Sep", "Oct", "Nov", "Dec")[lt.tm_mon - 1],
+                                             lt.tm_mday, lt.tm_hour, lt.tm_min)
+            else:
+                when = "%d월 %d일 %02d:%02d" % (lt.tm_mon, lt.tm_mday, lt.tm_hour, lt.tm_min)
+            status = T("동기화 중…") if a._syncing else (
                 when + (" · " + acc.last_msg if acc.last_msg else ""))
-            tk.Label(box, text="마지막 동기화", bg=p["bg"], fg=p["muted"], font=a.font_small,
+            tk.Label(box, text=T("마지막 동기화"), bg=p["bg"], fg=p["muted"], font=a.font_small,
                      anchor="w").pack(fill="x")
             tk.Label(box, text=status, bg=p["bg"],
                      fg=p["over"] if (acc.last_at and not acc.last_ok) else p["text"],
@@ -1886,30 +1929,30 @@ class SettingsWindow(Popup):
             btns = tk.Frame(box, bg=p["bg"])
             btns.pack(fill="x", pady=(8, 0))
             if acc.need_reconnect:
-                flat_button(btns, "다시 연결", self._connect, p, fg="white", bg=p["accent"],
+                flat_button(btns, T("다시 연결"), self._connect, p, fg="white", bg=p["accent"],
                             font=f).pack(side="left")
             else:
-                flat_button(btns, "지금 동기화", lambda: a.request_sync(0), p, fg=p["accent"],
+                flat_button(btns, T("지금 동기화"), lambda: a.request_sync(0), p, fg=p["accent"],
                             font=f).pack(side="left")
-            flat_button(btns, "연결 끊기", self._disconnect, p, fg=p["over"],
+            flat_button(btns, T("연결 끊기"), self._disconnect, p, fg=p["over"],
                         font=f).pack(side="left", padx=6)
         else:
-            flat_button(box, "구글 계정 연결", self._connect, p, fg="white", bg=p["accent"],
+            flat_button(box, T("구글 계정 연결"), self._connect, p, fg="white", bg=p["accent"],
                         font=f, pady=6).pack(fill="x")
             self.login_msg = tk.Label(box, text="", bg=p["bg"], fg=p["muted"], font=a.font_small,
                                       anchor="w", wraplength=330, justify="left")
             self.login_msg.pack(fill="x", pady=(4, 0))
 
         tk.Label(box, text=(
-            "폰의 할 일 앱과 같은 구글 계정으로 연결하면 목록이 자동으로 맞춰집니다. "
+            T("폰의 할 일 앱과 같은 구글 계정으로 연결하면 목록이 자동으로 맞춰집니다. "
             "목록은 드라이브의 앱 전용 숨김 공간에만 저장됩니다.\n\n"
-            "바꾼 내용은 몇 초 안에 올라가고, 다른 기기의 변경은 켤 때와 5분마다 받아옵니다."),
+            "바꾼 내용은 몇 초 안에 올라가고, 다른 기기의 변경은 켤 때와 5분마다 받아옵니다.")),
             bg=p["bg"], fg=p["muted"], font=a.font_small, wraplength=330, justify="left",
             anchor="w").pack(fill="x", pady=(14, 10))
 
     def _connect(self):
         try:
-            self.login_msg.configure(text="브라우저에서 구글 로그인을 마쳐 주세요…")
+            self.login_msg.configure(text=T("브라우저에서 구글 로그인을 마쳐 주세요…"))
         except (tk.TclError, AttributeError):
             pass
 
@@ -1925,7 +1968,7 @@ class SettingsWindow(Popup):
 
     def _disconnect(self):
         from tkinter import messagebox
-        if messagebox.askyesno("동기화", "구글 계정 연결을 끊을까요?\n이 컴퓨터의 목록은 그대로 남습니다.",
+        if messagebox.askyesno(T("동기화"), T("구글 계정 연결을 끊을까요?\n이 컴퓨터의 목록은 그대로 남습니다."),
                                parent=self.win):
             self.app.disconnect_account()
             self.paint_account()

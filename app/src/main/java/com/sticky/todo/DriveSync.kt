@@ -99,17 +99,18 @@ object DriveSync {
     /** 반드시 백그라운드 스레드에서 부를 것. 통신이 끝날 때까지 기다린다. */
     fun syncNow(ctx: Context): SyncResult {
         val app = ctx.applicationContext
+        val res = Lang.wrap(app)   // 기록해 둘 메시지를 고른 언어로
 
         val acct = account(app)
         val androidAccount = acct?.account
-            ?: return record(app, SyncResult(false, "구글 계정이 연결되지 않았습니다"))
+            ?: return record(app, SyncResult(false, res.getString(R.string.sync_err_no_account)))
 
         var token = try {
             GoogleAuthUtil.getToken(app, androidAccount, "oauth2:$SCOPE")
         } catch (e: UserRecoverableAuthException) {
-            return record(app, SyncResult(false, "구글 권한 승인이 필요합니다. 설정에서 다시 연결해 주세요"))
+            return record(app, SyncResult(false, res.getString(R.string.sync_err_consent)))
         } catch (e: Exception) {
-            return record(app, SyncResult(false, "인증 실패: ${e.javaClass.simpleName} ${e.message ?: ""}".trim()))
+            return record(app, SyncResult(false, res.getString(R.string.sync_err_auth, errText(e))))
         }
 
         try {
@@ -121,7 +122,7 @@ object DriveSync {
                 found = findFile(token)
             }
             if (found.code !in 200..299) {
-                return record(app, SyncResult(false, "드라이브 조회 실패 (${found.code}) ${brief(found.body)}"))
+                return record(app, SyncResult(false, res.getString(R.string.sync_err_lookup, found.code, brief(found.body)).trim()))
             }
 
             val remoteFile = firstFile(found.body)
@@ -139,15 +140,15 @@ object DriveSync {
                 !remoteFile.hash.isNullOrEmpty() && remoteFile.hash == knownHash
             ) {
                 if (localSig == knownSig) {
-                    return record(app, SyncResult(true, "동기화 완료 · 변경 없음"))
+                    return record(app, SyncResult(true, res.getString(R.string.sync_done, res.getString(R.string.sync_what_none))))
                 }
                 // 이 기기만 바뀌었다 → 올리기만
                 val up = updateFile(token, remoteFile.id, local.toBytes())
                 if (up.code !in 200..299) {
-                    return record(app, SyncResult(false, "올리기 실패 (${up.code}) ${brief(up.body)}"))
+                    return record(app, SyncResult(false, res.getString(R.string.sync_err_upload, up.code, brief(up.body)).trim()))
                 }
                 saveSyncState(app, remoteFile.id, hashOf(up.body), localSig)
-                return record(app, SyncResult(true, "동기화 완료 · 올림"))
+                return record(app, SyncResult(true, res.getString(R.string.sync_done, res.getString(R.string.sync_what_up))))
             }
 
             // ── 보통 길: 내려받아 합친다 ──
@@ -155,7 +156,7 @@ object DriveSync {
             val remote: SyncData? = if (fileId == null) null else {
                 val got = httpGet("https://www.googleapis.com/drive/v3/files/$fileId?alt=media", token)
                 if (got.code !in 200..299) {
-                    return record(app, SyncResult(false, "내려받기 실패 (${got.code}) ${brief(got.body)}"))
+                    return record(app, SyncResult(false, res.getString(R.string.sync_err_download, got.code, brief(got.body)).trim()))
                 }
                 SyncData.parseBytes(got.bytes)   // 압축 파일과 예전 그냥 JSON 둘 다 읽는다
             }
@@ -172,7 +173,7 @@ object DriveSync {
                 val up = if (fileId == null) createFile(token, body) else updateFile(token, fileId, body)
                 if (up.code !in 200..299) {
                     forgetSyncState(app)
-                    return record(app, SyncResult(false, "올리기 실패 (${up.code}) ${brief(up.body)}", changedHere))
+                    return record(app, SyncResult(false, res.getString(R.string.sync_err_upload, up.code, brief(up.body)).trim(), changedHere))
                 }
                 newId = idOf(up.body) ?: fileId
                 newHash = hashOf(up.body)
@@ -180,14 +181,14 @@ object DriveSync {
             if (newId != null) saveSyncState(app, newId, newHash, merged.signature())
 
             val what = when {
-                changedHere && needUpload -> "주고받음"
-                changedHere -> "받아옴"
-                needUpload -> "올림"
-                else -> "변경 없음"
+                changedHere && needUpload -> R.string.sync_what_both
+                changedHere -> R.string.sync_what_down
+                needUpload -> R.string.sync_what_up
+                else -> R.string.sync_what_none
             }
-            return record(app, SyncResult(true, "동기화 완료 · $what", changedHere))
+            return record(app, SyncResult(true, res.getString(R.string.sync_done, res.getString(what)), changedHere))
         } catch (e: Exception) {
-            return record(app, SyncResult(false, "통신 오류: ${e.javaClass.simpleName} ${e.message ?: ""}".trim()))
+            return record(app, SyncResult(false, res.getString(R.string.sync_err_network, errText(e))))
         }
     }
 
@@ -295,6 +296,8 @@ object DriveSync {
             conn?.disconnect()
         }
     }
+
+    private fun errText(e: Exception) = "${e.javaClass.simpleName} ${e.message ?: ""}".trim()
 
     private fun brief(body: String): String {
         val t = body.replace(Regex("\\s+"), " ").trim()

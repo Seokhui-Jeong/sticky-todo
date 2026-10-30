@@ -8,7 +8,6 @@ import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
 import androidx.core.content.ContextCompat
 
@@ -16,7 +15,7 @@ import androidx.core.content.ContextCompat
  * 설정 화면. 바꾸는 즉시 저장되고 위젯에도 바로 반영된다.
  * 항목이 많지 않아 레이아웃 파일 대신 코드로 줄을 만든다.
  */
-class SettingsActivity : AppCompatActivity() {
+class SettingsActivity : BaseActivity() {
 
     private lateinit var box: LinearLayout
 
@@ -33,17 +32,27 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun build() {
         box.removeAllViews()
+        fun arr(id: Int): Array<String> = resources.getStringArray(id)
 
-        section("위젯")
-        choice("머리글 (제목·추가 버튼)", Settings.HEADER_LABELS,
+        section(getString(R.string.sec_language))
+        choice(getString(R.string.lang_title), Lang.LABELS, { Lang.mode }, {
+            if (it != Lang.mode) {
+                Lang.setMode(this, it)
+                TodoWidget.refresh(this)   // 위젯 제목·날짜도 새 언어로
+                recreate()                 // 이 화면은 바로, 뒤의 화면은 돌아갈 때 다시 그려진다
+            }
+        })
+
+        section(getString(R.string.sec_widget))
+        choice(getString(R.string.header_row), arr(R.array.header_labels),
             { Settings.header(this) }, { Settings.setHeader(this, it) })
-        toggle("완료한 항목 숨기기", "위젯에서만 숨깁니다. 앱에서는 그대로 보입니다",
+        toggle(getString(R.string.hide_done), getString(R.string.hide_done_sub),
             { Settings.hideDoneInWidget(this) }, { Settings.setHideDoneInWidget(this, it) })
-        choice("배경 불투명도", Settings.OPACITY_LABELS,
+        choice(getString(R.string.opacity_title), arr(R.array.opacity_labels),
             { Settings.opacityLevel(this) }, { Settings.setOpacityLevel(this, it) })
-        choice("글자 크기", Settings.FONT_LABELS,
+        choice(getString(R.string.font_title), arr(R.array.font_labels),
             { Settings.fontLevel(this) }, { Settings.setFontLevel(this, it) })
-        choice("줄 간격", SPACING_LABELS,
+        choice(getString(R.string.spacing_row), arr(R.array.spacing_labels),
             { TodoRepo.widgetSpacing(this) }, { TodoRepo.setWidgetSpacing(this, it) })
         val tapValues = arrayOf(TodoRepo.TAP_ADD, TodoRepo.TAP_OPEN)
         choice(getString(R.string.widget_tap_title),
@@ -51,14 +60,14 @@ class SettingsActivity : AppCompatActivity() {
             { tapValues.indexOf(TodoRepo.widgetTap(this)).coerceAtLeast(0) },
             { TodoRepo.setWidgetTap(this, tapValues[it]) })
 
-        section("날짜")
-        choice("표시 방식", Settings.DATE_LABELS,
+        section(getString(R.string.sec_date))
+        choice(getString(R.string.date_mode_title), arr(R.array.date_labels),
             { Settings.dateMode(this) }, { Settings.setDateMode(this, it) })
-        toggle("요일 함께 표시", "예: 10/5(월)",
+        toggle(getString(R.string.weekday_title), getString(R.string.weekday_sub),
             { Settings.showWeekday(this) }, { Settings.setShowWeekday(this, it) })
 
-        section("정리")
-        choice("보관함 자동 비우기", Settings.ARCHIVE_KEEP_LABELS,
+        section(getString(R.string.sec_cleanup))
+        choice(getString(R.string.archive_keep_title), arr(R.array.archive_keep_labels),
             { Settings.archiveKeepLevel(this) },
             {
                 Settings.setArchiveKeepLevel(this, it)
@@ -66,15 +75,15 @@ class SettingsActivity : AppCompatActivity() {
                 SyncScheduler.soon(this)
             })
 
-        section("동기화")
-        toggle("와이파이에서만 자동 동기화", "모바일 데이터에서는 기다렸다가 와이파이에 연결되면 맞춥니다",
+        section(getString(R.string.sync_title))
+        toggle(getString(R.string.wifi_only), getString(R.string.wifi_only_sub),
             { Settings.wifiOnly(this) },
             {
                 Settings.setWifiOnly(this, it)
                 SyncScheduler.ensurePeriodic(this, replace = true)
             })
-        link("구글 계정 · 지금 동기화",
-            if (DriveSync.connected(this)) DriveSync.email(this) ?: "연결됨"
+        link(getString(R.string.sync_link),
+            if (DriveSync.connected(this)) DriveSync.email(this) ?: getString(R.string.sync_connected)
             else getString(R.string.sync_not_connected)) {
             startActivity(Intent(this, SyncActivity::class.java))
         }
@@ -174,9 +183,5 @@ class SettingsActivity : AppCompatActivity() {
             setTextColor(color(R.color.muted))
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
         }, onClick)
-    }
-
-    companion object {
-        val SPACING_LABELS = arrayOf("아주 좁게", "좁게", "보통 (기본)", "넓게", "아주 넓게")
     }
 }
