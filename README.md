@@ -1,5 +1,7 @@
 # 할 일 메모
 
+**English:** [Download](#english)
+
 폰 홈 화면 위젯과 PC 바탕화면 메모가 같은 할 일 목록을 구글 드라이브로 주고받습니다.
 
 ## ⬇ 최신 버전 받기
@@ -12,6 +14,22 @@
 두 주소는 늘 가장 최근에 빌드한 파일을 가리킵니다.
 빌드 기록은 [Actions](https://github.com/Seokhui-Jeong/sticky-todo/actions) 왼쪽에서
 **Build APK** / **Build Desktop** 을 골라 보면 각각의 최신 빌드가 맨 위에 나옵니다.
+
+<a id="english"></a>
+
+## ⬇ Download (English)
+
+A to-do widget for your Android home screen and a sticky note for your Windows desktop,
+kept in sync through Google Drive. The apps support **Korean and English** —
+choose the language in **Settings → Language**.
+
+| | Download | |
+|---|---|---|
+| 📱 **Android app · widget** | [todo-widget.apk](https://github.com/Seokhui-Jeong/sticky-todo/releases/latest/download/todo-widget.apk) | Tap it on your phone to install |
+| 🖥 **Sticky Todo Desktop** (Windows) | [sticky-todo.exe](https://github.com/Seokhui-Jeong/sticky-todo/releases/download/desktop/sticky-todo.exe) | Runs without installing |
+
+Both links always point to the latest build.
+On Android, allow installing from unknown sources when asked.
 
 ```
 ┌─────────────────────────────┐
