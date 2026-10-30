@@ -36,6 +36,14 @@ object DriveSync {
     private const val K_LAST_AT = "sync_last_at"
     private const val K_LAST_MSG = "sync_last_msg"
     private const val K_LAST_OK = "sync_last_ok"
+    // 성공했을 때 무엇을 했는지 (글자 대신 종류만 남겨, 볼 때의 언어로 다시 쓴다)
+    private const val K_LAST_WHAT = "sync_last_what"
+    private val WHAT = mapOf(
+        "none" to R.string.sync_what_none,
+        "up" to R.string.sync_what_up,
+        "down" to R.string.sync_what_down,
+        "both" to R.string.sync_what_both
+    )
 
     // 드라이브 파일을 마지막으로 맞췄을 때의 상태.
     // 다음 동기화 때 드라이브 파일의 내용 지문(md5)이 이것과 같으면 내려받지 않는다.
@@ -65,7 +73,16 @@ object DriveSync {
         ctx.applicationContext.getSharedPreferences(PREF, Context.MODE_PRIVATE)
 
     fun lastSyncAt(ctx: Context): Long = prefs(ctx).getLong(K_LAST_AT, 0L)
-    fun lastMessage(ctx: Context): String = prefs(ctx).getString(K_LAST_MSG, "") ?: ""
+    /** 마지막 결과 글자. 성공이면 지금 화면 언어로 새로 만든다. */
+    fun lastMessage(ctx: Context): String {
+        val p = prefs(ctx)
+        val what = p.getString(K_LAST_WHAT, null)?.let { WHAT[it] }
+        if (what != null && p.getBoolean(K_LAST_OK, false)) {
+            val c = Lang.wrap(ctx)
+            return c.getString(R.string.sync_done, c.getString(what))
+        }
+        return p.getString(K_LAST_MSG, "") ?: ""
+    }
     fun lastOk(ctx: Context): Boolean = prefs(ctx).getBoolean(K_LAST_OK, false)
 
     /** 계정을 새로 연결하거나 끊을 때 부른다. 다음 동기화는 처음부터 전부 받는다. */
@@ -85,11 +102,12 @@ object DriveSync {
             .apply()
     }
 
-    private fun record(ctx: Context, r: SyncResult): SyncResult {
+    private fun record(ctx: Context, r: SyncResult, what: String? = null): SyncResult {
         prefs(ctx).edit()
             .putLong(K_LAST_AT, System.currentTimeMillis())
             .putString(K_LAST_MSG, r.message)
             .putBoolean(K_LAST_OK, r.ok)
+            .putString(K_LAST_WHAT, what)
             .apply()
         return r
     }
@@ -140,7 +158,7 @@ object DriveSync {
                 !remoteFile.hash.isNullOrEmpty() && remoteFile.hash == knownHash
             ) {
                 if (localSig == knownSig) {
-                    return record(app, SyncResult(true, res.getString(R.string.sync_done, res.getString(R.string.sync_what_none))))
+                    return record(app, SyncResult(true, res.getString(R.string.sync_done, res.getString(R.string.sync_what_none))), "none")
                 }
                 // 이 기기만 바뀌었다 → 올리기만
                 val up = updateFile(token, remoteFile.id, local.toBytes())
@@ -148,7 +166,7 @@ object DriveSync {
                     return record(app, SyncResult(false, res.getString(R.string.sync_err_upload, up.code, brief(up.body)).trim()))
                 }
                 saveSyncState(app, remoteFile.id, hashOf(up.body), localSig)
-                return record(app, SyncResult(true, res.getString(R.string.sync_done, res.getString(R.string.sync_what_up))))
+                return record(app, SyncResult(true, res.getString(R.string.sync_done, res.getString(R.string.sync_what_up))), "up")
             }
 
             // ── 보통 길: 내려받아 합친다 ──
@@ -181,12 +199,13 @@ object DriveSync {
             if (newId != null) saveSyncState(app, newId, newHash, merged.signature())
 
             val what = when {
-                changedHere && needUpload -> R.string.sync_what_both
-                changedHere -> R.string.sync_what_down
-                needUpload -> R.string.sync_what_up
-                else -> R.string.sync_what_none
+                changedHere && needUpload -> "both"
+                changedHere -> "down"
+                needUpload -> "up"
+                else -> "none"
             }
-            return record(app, SyncResult(true, res.getString(R.string.sync_done, res.getString(what)), changedHere))
+            val text = res.getString(R.string.sync_done, res.getString(WHAT.getValue(what)))
+            return record(app, SyncResult(true, text, changedHere), what)
         } catch (e: Exception) {
             return record(app, SyncResult(false, res.getString(R.string.sync_err_network, errText(e))))
         }

@@ -223,5 +223,6 @@ EN = {
     "동기화 완료 · 받아옴": "Synced · received",
     "변경 없음": "no changes",
     "올림": "uploaded",
+    "받아옴": "received",
     "확인": "checked",
 }

@@ -1271,7 +1271,7 @@ class App(object):
             changed = self.store.apply_merged(final)
             if changed:
                 self.store.run_auto_archive()
-                self.account.record(True, T("동기화 완료 · 받아옴"))
+                self.account.record(True, T("동기화 완료 · 받아옴"), "down")
                 self.refresh()
                 if self.archive_win:
                     self.archive_win.render()
@@ -1920,7 +1920,7 @@ class SettingsWindow(Popup):
             else:
                 when = "%d월 %d일 %02d:%02d" % (lt.tm_mon, lt.tm_mday, lt.tm_hour, lt.tm_min)
             status = T("동기화 중…") if a._syncing else (
-                when + (" · " + acc.last_msg if acc.last_msg else ""))
+                when + (" · " + acc.status_text() if acc.status_text() else ""))
             tk.Label(box, text=T("마지막 동기화"), bg=p["bg"], fg=p["muted"], font=a.font_small,
                      anchor="w").pack(fill="x")
             tk.Label(box, text=status, bg=p["bg"],

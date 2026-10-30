@@ -126,6 +126,7 @@ class Account(object):
         self.last_at = 0
         self.last_msg = ""
         self.last_ok = False
+        self.last_what = None     # 성공했을 때 한 일의 종류 (볼 때의 언어로 글자를 만든다)
         self.need_reconnect = False
         # 드라이브 파일을 마지막으로 맞췄을 때의 상태. 파일 내용 지문(md5)이 같으면 내려받지 않는다.
         self.file_id = None
@@ -148,6 +149,7 @@ class Account(object):
         self.last_at = o.get("last_at", 0)
         self.last_msg = o.get("last_msg", "")
         self.last_ok = bool(o.get("last_ok", False))
+        self.last_what = o.get("last_what")
         self.need_reconnect = bool(o.get("need_reconnect", False))
         self.file_id = o.get("file_id")
         self.file_hash = o.get("file_hash")
@@ -170,6 +172,7 @@ class Account(object):
             "last_at": self.last_at,
             "last_msg": self.last_msg,
             "last_ok": self.last_ok,
+            "last_what": self.last_what,
             "need_reconnect": self.need_reconnect,
             "file_id": self.file_id,
             "file_hash": self.file_hash,
@@ -186,11 +189,19 @@ class Account(object):
     def connected(self):
         return bool(self.refresh_token)
 
-    def record(self, ok, msg):
+    def record(self, ok, msg, what=None):
         self.last_at = int(time.time())
         self.last_ok = ok
         self.last_msg = msg
+        self.last_what = what if ok else None
         self.save()
+
+    def status_text(self):
+        """마지막 결과 글자. 성공이면 지금 화면 언어로 새로 만든다."""
+        w = _WHAT.get(self.last_what) if self.last_ok else None
+        if w:
+            return T("동기화 완료 · ") + T(w)
+        return self.last_msg
 
     def forget(self):
         tok = self.refresh_token
@@ -449,6 +460,10 @@ def _upload(account, fid, data):
     return o.get("id") or fid, o.get("md5Checksum") or None
 
 
+# 동기화 결과의 종류 → 화면 글자 (영어는 i18n.EN)
+_WHAT = {"none": "변경 없음", "up": "올림", "check": "확인", "down": "받아옴"}
+
+
 def sync_once(account, local):
     """드라이브와 한 번 맞춘다. 통신이 끝날 때까지 기다린다.
     (성공 여부, 메시지, 병합 결과 또는 None)
@@ -466,12 +481,12 @@ def sync_once(account, local):
             if (fid and fhash and fid == account.file_id and fhash == account.file_hash
                     and account.synced_sig):
                 if local_sig == account.synced_sig:
-                    what = T("변경 없음")
+                    what = "none"
                 else:
                     new_id, new_hash = _upload(account, fid, local)
                     account.remember_sync_state(new_id, new_hash, local_sig)
-                    what = T("올림")
-                account.record(True, T("동기화 완료 · ") + what)
+                    what = "up"
+                account.record(True, T("동기화 완료 · ") + T(_WHAT[what]), what)
                 return True, account.last_msg, local
 
             # 보통 길: 내려받아 합친다
@@ -486,8 +501,8 @@ def sync_once(account, local):
                     account.forget_sync_state()
                     raise
             account.remember_sync_state(new_id, new_hash, merged.signature())
-        what = T("올림") if need_up else T("확인")
-        account.record(True, T("동기화 완료 · ") + what)
+        what = "up" if need_up else "check"
+        account.record(True, T("동기화 완료 · ") + T(_WHAT[what]), what)
         return True, account.last_msg, merged
     except RuntimeError as e:
         account.record(False, str(e))
