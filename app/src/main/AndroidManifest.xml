@@ -4,8 +4,6 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <!-- 새 버전 APK 를 설치 화면으로 넘기기 위해 (설치는 사용자가 직접 누른다) -->
-    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application
         android:name=".App"
@@ -83,17 +81,6 @@
             android:exported="false"
             android:theme="@style/InvisibleTheme"
             android:excludeFromRecents="true" />
-
-        <!-- 받아 둔 APK 를 설치 화면에 넘겨 주는 통로 -->
-        <provider
-            android:name="androidx.core.content.FileProvider"
-            android:authorities="${applicationId}.files"
-            android:exported="false"
-            android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/update_paths" />
-        </provider>
 
     </application>
 </manifest>

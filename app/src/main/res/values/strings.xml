@@ -96,16 +96,13 @@
     <!-- 새 버전 -->
     <string name="upd_badge">↑ Update</string>
     <string name="upd_title">A new version is available</string>
-    <string name="upd_msg">Build %1$d is ready to install (you have build %2$d).\nYour to-do list stays as it is.</string>
+    <string name="upd_msg">Build %1$d is available (you have build %2$d).\nTap Update to download it in your browser, then open the file to install. Your to-do list stays as it is.</string>
     <string name="upd_install">Update</string>
     <string name="upd_hide">Hide this</string>
     <string name="upd_later">Later</string>
     <string name="upd_hidden">Hidden. You can still update from Settings › About.</string>
-    <string name="upd_allow_title">Allow installing updates</string>
-    <string name="upd_allow_msg">To install the update, turn on “Allow from this source” for this app. You only need to do this once.</string>
-    <string name="upd_allow_go">Open settings</string>
-    <string name="upd_downloading">Downloading the update…</string>
-    <string name="upd_failed">Couldn’t get the update. Please try again later.</string>
+    <string name="upd_failed">Couldn’t open the download. Please try again later.</string>
+    <string name="upd_open_file">When the download finishes, open the file to install it.</string>
     <string name="upd_latest">You have the latest version</string>
     <string name="upd_checking">Checking for updates…</string>
     <string name="upd_check_failed">Couldn’t check for updates</string>

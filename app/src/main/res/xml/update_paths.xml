@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- 업데이트용으로 받아 둔 APK 폴더만 설치 화면에 보여 준다 -->
-<paths>
-    <cache-path name="updates" path="updates/" />
-</paths>
