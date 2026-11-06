@@ -60,6 +60,7 @@ DEFAULT_SETTINGS = {
     "archive_keep": 0,
     "tray_hint_shown": False,
     "lang": 0,                 # 0 시스템 언어 따르기, 1 한국어, 2 English
+    "auto_update": True,       # 새 버전을 받아 두었다가 다음에 켤 때 적용
 }
 
 DEFAULT_W, DEFAULT_H = 300, 380

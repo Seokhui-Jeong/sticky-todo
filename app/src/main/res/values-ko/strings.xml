@@ -91,6 +91,27 @@
     <string name="sync_what_down">받아옴</string>
     <string name="sync_what_both">주고받음</string>
 
+
+    <!-- 새 버전 -->
+    <string name="upd_badge">↑ 업데이트</string>
+    <string name="upd_title">새 버전이 있습니다</string>
+    <string name="upd_msg">빌드 %1$d을(를) 설치할 수 있습니다. (지금: 빌드 %2$d)\n할 일 목록은 그대로 남습니다.</string>
+    <string name="upd_install">업데이트</string>
+    <string name="upd_hide">표시 숨기기</string>
+    <string name="upd_later">나중에</string>
+    <string name="upd_hidden">표시를 숨겼습니다. 설정 › 앱 정보에서 언제든 업데이트할 수 있습니다.</string>
+    <string name="upd_allow_title">업데이트 설치 허용</string>
+    <string name="upd_allow_msg">업데이트를 설치하려면 이 앱에 ‘이 출처 허용’을 켜 주세요. 처음 한 번만 하면 됩니다.</string>
+    <string name="upd_allow_go">설정 열기</string>
+    <string name="upd_downloading">업데이트를 받는 중…</string>
+    <string name="upd_failed">업데이트를 받지 못했습니다. 잠시 뒤 다시 시도해 주세요.</string>
+    <string name="upd_latest">최신 버전입니다</string>
+    <string name="upd_checking">새 버전을 확인하는 중…</string>
+    <string name="upd_check_failed">새 버전을 확인하지 못했습니다</string>
+    <string name="sec_about">앱 정보</string>
+    <string name="about_version">버전</string>
+    <string name="about_build_latest">빌드 %1$d · 최신</string>
+    <string name="about_build_update">빌드 %1$d · 빌드 %2$d 업데이트 가능</string>
     <string-array name="header_labels">
         <item>자동 (낮으면 숨김)</item>
         <item>항상 표시</item>

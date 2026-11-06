@@ -74,6 +74,10 @@ jobs:
           open("version.txt", "w", encoding="utf-8").write(tpl)
           PY
 
+      # 앱이 자기 빌드 번호를 알아야 새 버전과 비교할 수 있다 (저장소에는 0)
+      - name: Build number
+        run: echo "BUILD = ${{ github.run_number }}" > desktop/build_info.py
+
       - name: Build exe
         run: |
           python -m PyInstaller --noconfirm --onefile --windowed \
@@ -85,6 +89,19 @@ jobs:
             --hidden-import pystray._win32 \
             desktop/sticky_todo.py
           ls -l dist
+
+      # 앱이 읽는 최신 버전 정보 (빌드 번호 + 파일 지문). 받은 exe 가 맞는지 이걸로 확인한다.
+      - name: Version file
+        run: |
+          python - <<'PY'
+          import hashlib, json
+          data = open("dist/sticky-todo.exe", "rb").read()
+          json.dump({"build": int("${{ github.run_number }}"),
+                     "sha256": hashlib.sha256(data).hexdigest(),
+                     "size": len(data)},
+                    open("dist/desktop-version.json", "w"))
+          PY
+          cat dist/desktop-version.json
 
       # 폰 APK 의 'latest' 주소를 건드리지 않도록 desktop 이라는 고정 릴리스에 올린다.
       #   https://github.com/<계정>/<저장소>/releases/download/desktop/sticky-todo.exe
@@ -101,6 +118,8 @@ jobs:
             gh release create desktop dist/sticky-todo.exe --target "${{ github.sha }}" \
               --title "할 일 메모 Desktop ($NOW)" --notes "$NOTES" --latest=false
           fi
+          # 버전 정보는 exe 를 다 올린 뒤에 올린다 (앱이 덜 올라간 exe 를 받지 않도록)
+          gh release upload desktop dist/desktop-version.json --clobber
 
       - name: Upload exe as artifact
         uses: actions/upload-artifact@v4

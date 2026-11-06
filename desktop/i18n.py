@@ -225,4 +225,25 @@ EN = {
     "올림": "uploaded",
     "받아옴": "received",
     "확인": "checked",
+
+    # 업데이트 (updater.py)
+    "업데이트하고 다시 시작": "Update and restart",
+    "새 버전을 받는 중입니다…": "Downloading the new version…",
+    "새 버전을 받지 못했습니다. 잠시 뒤 다시 시도해 주세요.": "Couldn’t download the new version. Please try again later.",
+    "새 버전으로 업데이트했습니다. (빌드 %d)": "Updated to the new version. (build %d)",
+    "앱 정보": "About",
+    "자동 업데이트": "Automatic updates",
+    "새 버전을 받아 두었다가 다음에 켤 때 적용합니다": "Installs new versions the next time the app starts",
+    "버전": "Version",
+    "개발용 실행 (업데이트 확인 안 함)": "Development run (no update checks)",
+    "빌드 %d": "Build %d",
+    "확인 중…": "Checking…",
+    "빌드 %d을(를) 자동으로 적용하지 못했습니다. 직접 내려받아 주세요.":
+        "Couldn’t apply build %d automatically. Please download it yourself.",
+    "빌드 %d을(를) 받아 두었습니다. 다음에 켤 때 적용됩니다.":
+        "Build %d is downloaded. It will be applied the next time the app starts.",
+    "빌드 %d을(를) 받을 수 있습니다.": "Build %d is available.",
+    "최신 버전입니다.": "You have the latest version.",
+    "내려받기 페이지 열기": "Open download page",
+    "지금 확인": "Check now",
 }

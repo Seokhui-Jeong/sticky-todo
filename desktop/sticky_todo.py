@@ -29,6 +29,7 @@ import i18n
 from i18n import T
 import store as st
 import drive_sync as ds
+import updater
 
 APP_TITLE = "할 일 메모 Desktop"
 HEADER_TITLE = "할 일"
@@ -40,6 +41,7 @@ FONT_FAMILY = "맑은 고딕"
 SYNC_DELAY_MS = 4000              # 바꾼 뒤 이만큼 기다렸다가 올린다 (연달아 바꾸면 한 번만)
 SYNC_EVERY_MS = 5 * 60 * 1000     # 켜져 있는 동안 주기적으로 받아오기
 TICK_MS = 30 * 1000               # 날짜가 바뀌었는지 확인
+UPDATE_TICK_MS = 60 * 60 * 1000   # 한 시간마다 들여다보되, 실제 확인은 12시간에 한 번
 
 RESIZE_EDGE = 4          # 가장자리에서 이만큼 안쪽까지 잡힌다 (눈에는 안 보임)
 RESIZE_CORNER = 12       # 모서리는 이만큼 사각형
@@ -284,6 +286,17 @@ def hide_from_taskbar(root):
 
 # ── 한 번만 실행 ──────────────────────────────────────────
 
+def instance_running():
+    """다른 창이 이미 켜져 있는가 (자리만 확인하고 바로 놓는다)"""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.bind(("127.0.0.1", INSTANCE_PORT))
+        s.close()
+        return False
+    except OSError:
+        return True
+
+
 def claim_single_instance(on_show):
     """이미 켜져 있으면 그 창을 앞으로 불러오고 False. 처음이면 True."""
     try:
@@ -346,6 +359,8 @@ class Tray(object):
             M(lambda item: T("트레이로 숨기기"), post("hide"), visible=lambda item: not app.hidden),
             pystray.Menu.SEPARATOR,
             M(lambda item: T("지금 동기화"), post("sync"), visible=lambda item: app.account.connected()),
+            M(lambda item: T("업데이트하고 다시 시작"), post("update"),
+              visible=lambda item: updater.available()),
             M(lambda item: T("보관함"), post("archive")),
             M(lambda item: T("설정"), post("settings")),
             pystray.Menu.SEPARATOR,
@@ -500,6 +515,11 @@ class App(object):
         self.root.after(TICK_MS, self._tick)
         self.root.after(1500, lambda: self.request_sync(0))
         self.root.after(SYNC_EVERY_MS, self._periodic_sync)
+        self._updating = False
+        if updater.ARG_UPDATED in sys.argv:
+            self.root.after(300, self._just_updated)
+        self.root.after(15 * 1000, updater.cleanup)
+        self.root.after(60 * 1000, self._update_tick)
 
     # ── 모양 ─────────────────────────────────────────────
 
@@ -1344,6 +1364,16 @@ class App(object):
                     self.open_archive()
                 elif kind == "settings":
                     self.open_settings()
+                elif kind == "update":
+                    self.update_and_restart()
+                elif kind == "update_state":
+                    self._updating = False
+                    self.tray.relabel()
+                    if self.settings_win:
+                        self.settings_win.paint_about()
+                elif kind == "restart":
+                    self._restart_for_update()
+                    return
                 elif kind == "quit":
                     self.quit()
                     return
@@ -1387,6 +1417,63 @@ class App(object):
         if msgs:
             from tkinter import messagebox
             messagebox.showinfo(APP_TITLE, "\n".join(msgs), parent=self.root)
+
+    # ── 업데이트 ─────────────────────────────────────────
+
+    def _update_tick(self):
+        """한 시간마다: 12시간이 지났으면 새 버전을 확인하고, 자동이면 받아 둔다"""
+        if updater.enabled() and updater.due() and not self._updating:
+            self.check_update(download=self.store.setting("auto_update"))
+        self.root.after(UPDATE_TICK_MS, self._update_tick)
+
+    def check_update(self, download=False):
+        self._updating = True
+
+        def work():
+            try:
+                updater.check()
+                if download and updater.available():
+                    updater.download()
+            except Exception:
+                log_exception("업데이트 확인 중 오류")
+            self.events.put(("update_state",))
+        threading.Thread(target=work, daemon=True).start()
+
+    def update_and_restart(self):
+        """트레이·설정의 '업데이트하고 다시 시작'. 아직 안 받았으면 받고 나서."""
+        if self._updating or not updater.available():
+            return
+        if updater.ready_build():
+            self._restart_for_update()
+            return
+        self._updating = True
+        self.tray.notify(T("새 버전을 받는 중입니다…"))
+
+        def work():
+            ok = False
+            try:
+                ok = bool(updater.download())
+            except Exception:
+                log_exception("업데이트 내려받기 오류")
+            self.events.put(("restart",) if ok else ("update_state",))
+            if not ok:
+                self.tray.notify(T("새 버전을 받지 못했습니다. 잠시 뒤 다시 시도해 주세요."))
+        threading.Thread(target=work, daemon=True).start()
+
+    def _restart_for_update(self):
+        """이 창을 닫고, 새로 띄운 프로세스가 바꿔 끼우게 한다"""
+        try:
+            updater.spawn([updater.ARG_APPLY, updater.ARG_WAIT, str(os.getpid())])
+        except OSError:
+            log_exception("다시 시작 실패")
+            self._updating = False
+            return
+        self.quit()
+
+    def _just_updated(self):
+        updater.mark_started()     # 옛 버전 프로세스가 이걸 보고 끝난다
+        self.root.after(2500, lambda: self.tray.notify(
+            T("새 버전으로 업데이트했습니다. (빌드 %d)") % updater.BUILD))
 
     def quit(self):
         self.commit_focused()
@@ -1793,6 +1880,70 @@ class SettingsWindow(Popup):
         self.acct.pack(fill="x", padx=16, pady=(4, 0))
         self.paint_account()
 
+        self.section(T("앱 정보"))
+        if updater.enabled():
+            self.toggle(T("자동 업데이트"), T("새 버전을 받아 두었다가 다음에 켤 때 적용합니다"),
+                        lambda: s.setting("auto_update"),
+                        lambda v: (s.set_setting("auto_update", v),
+                                   v and a.check_update(download=True)))
+        self.about = tk.Frame(self.box, bg=p["bg"])
+        self.about.pack(fill="x", padx=16, pady=(4, 14))
+        self.paint_about()
+
+    def paint_about(self):
+        try:
+            box = self.about
+            for w in box.winfo_children():
+                w.destroy()
+        except (tk.TclError, AttributeError):
+            return
+        p = self.pal
+        a = self.app
+        tk.Label(box, text=T("버전"), bg=p["bg"], fg=p["muted"], font=a.font_small,
+                 anchor="w").pack(fill="x")
+        if not updater.enabled():
+            tk.Label(box, text=T("개발용 실행 (업데이트 확인 안 함)"), bg=p["bg"], fg=p["text"],
+                     font=a.font_small, anchor="w").pack(fill="x")
+            return
+        tk.Label(box, text=T("빌드 %d") % updater.BUILD, bg=p["bg"], fg=p["text"],
+                 font=a.font_big, anchor="w").pack(fill="x")
+
+        latest, ready, failed = updater.latest_build(), updater.ready_build(), updater.failed_build()
+        color = p["text"]
+        if a._updating:
+            status = T("확인 중…")
+        elif failed:
+            status = T("빌드 %d을(를) 자동으로 적용하지 못했습니다. 직접 내려받아 주세요.") % failed
+            color = p["over"]
+        elif ready and a.store.setting("auto_update"):
+            status = T("빌드 %d을(를) 받아 두었습니다. 다음에 켤 때 적용됩니다.") % ready
+        elif updater.available():
+            status = T("빌드 %d을(를) 받을 수 있습니다.") % latest
+        elif latest:
+            status = T("최신 버전입니다.")
+        else:
+            status = ""
+        if status:
+            tk.Label(box, text=status, bg=p["bg"], fg=color, font=a.font_small, anchor="w",
+                     wraplength=330, justify="left").pack(fill="x", pady=(2, 0))
+
+        btns = tk.Frame(box, bg=p["bg"])
+        btns.pack(fill="x", pady=(8, 0))
+        f = a.font
+        if failed:
+            import webbrowser
+            flat_button(btns, T("내려받기 페이지 열기"), lambda: webbrowser.open(updater.PAGE_URL),
+                        p, fg=p["accent"], font=f).pack(side="left")
+        elif updater.available():
+            flat_button(btns, T("업데이트하고 다시 시작"), a.update_and_restart, p, fg="white",
+                        bg=p["accent"], font=f).pack(side="left")
+        else:
+            def check_now():
+                a.check_update(download=a.store.setting("auto_update"))
+                self.paint_about()
+            flat_button(btns, T("지금 확인"), check_now, p, fg=p["accent"],
+                        font=f).pack(side="left")
+
     # ── 줄 만들기 ────────────────────────────────────────
 
     def section(self, title):
@@ -1982,6 +2133,17 @@ def main():
         windll.shcore.SetProcessDpiAwareness(1)
     except Exception:
         pass
+
+    # 업데이트로 다시 시작하는 중이면 앞 프로세스가 끝나기를 기다리고,
+    # 받아 둔 새 버전이 있으면 화면을 띄우기 전에 바꿔 끼운다
+    updater.wait_for_pid(sys.argv)
+    if updater.enabled() and not instance_running():
+        try:
+            auto = st.Store().setting("auto_update")
+        except Exception:
+            auto = True
+        if updater.apply_pending(sys.argv, auto, log_error):
+            return
 
     holder = {}
     if not claim_single_instance(lambda: holder["app"].events.put(("show",)) if "app" in holder else None):

@@ -69,6 +69,19 @@ class TodoWidget : AppWidgetProvider() {
             val txt = Lang.wrap(ctx)
             rv.setTextViewText(R.id.widget_title, txt.getString(R.string.header_title))
             rv.setContentDescription(R.id.widget_add, txt.getString(R.string.add_task))
+            // 새 버전 표시 (숨기기를 누른 빌드는 다시 띄우지 않는다)
+            val badge = Updater.showBadge(ctx)
+            rv.setViewVisibility(R.id.widget_update, if (badge) View.VISIBLE else View.GONE)
+            if (badge) {
+                rv.setTextViewText(R.id.widget_update, txt.getString(R.string.upd_badge))
+                rv.setOnClickPendingIntent(
+                    R.id.widget_update,
+                    PendingIntent.getActivity(
+                        ctx, widgetId * 10 + 3, UpdateActivity.open(ctx),
+                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                    )
+                )
+            }
 
             val left = TodoRepo.remaining(ctx)
             rv.setTextViewText(R.id.widget_count, if (left > 0) left.toString() else "")
@@ -94,6 +107,7 @@ class TodoWidget : AppWidgetProvider() {
             val font = Settings.fontLevel(ctx)
             rv.setTextViewTextSize(R.id.widget_title, TypedValue.COMPLEX_UNIT_SP, Settings.FONT_TEXT[font])
             rv.setTextViewTextSize(R.id.widget_count, TypedValue.COMPLEX_UNIT_SP, Settings.FONT_SMALL[font])
+            rv.setTextViewTextSize(R.id.widget_update, TypedValue.COMPLEX_UNIT_SP, Settings.FONT_SMALL[font])
             rv.setTextViewTextSize(R.id.widget_empty, TypedValue.COMPLEX_UNIT_SP, Settings.FONT_SMALL[font] + 1f)
             rv.setViewVisibility(R.id.widget_header, headerVisibility)
             rv.setViewVisibility(R.id.widget_divider, headerVisibility)

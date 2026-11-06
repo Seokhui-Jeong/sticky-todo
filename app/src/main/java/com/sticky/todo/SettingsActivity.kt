@@ -7,6 +7,7 @@ import android.view.Gravity
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.widget.SwitchCompat
 import androidx.core.content.ContextCompat
@@ -87,6 +88,34 @@ class SettingsActivity : BaseActivity() {
             else getString(R.string.sync_not_connected)) {
             startActivity(Intent(this, SyncActivity::class.java))
         }
+
+        section(getString(R.string.sec_about))
+        val cur = Updater.currentBuild(this)
+        link(getString(R.string.about_version),
+            if (Updater.available(this))
+                getString(R.string.about_build_update, cur, Updater.latestBuild(this))
+            else getString(R.string.about_build_latest, cur)) { checkUpdate() }
+    }
+
+    /** 버전 줄을 누르면: 새 버전이 있으면 바로 업데이트 창, 없으면 지금 한 번 확인한다 */
+    private fun checkUpdate() {
+        if (Updater.available(this)) {
+            startActivity(UpdateActivity.open(this))
+            return
+        }
+        Toast.makeText(this, R.string.upd_checking, Toast.LENGTH_SHORT).show()
+        Thread {
+            val r = Updater.check(this)
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                when {
+                    r == null -> Toast.makeText(this, R.string.upd_check_failed, Toast.LENGTH_SHORT).show()
+                    Updater.available(this) -> startActivity(UpdateActivity.open(this))
+                    else -> Toast.makeText(this, R.string.upd_latest, Toast.LENGTH_SHORT).show()
+                }
+                build()
+            }
+        }.start()
     }
 
     // ── 줄 만들기 ─────────────────────────────────────────

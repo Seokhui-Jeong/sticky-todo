@@ -20,6 +20,11 @@ class SyncWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, params) {
 
     override fun doWork(): Result {
         val app = applicationContext
+        // 새 버전 확인 (12시간에 한 번만 실제로 통신한다). 계정 연결과 무관하게 한다.
+        try {
+            Updater.checkIfDue(app)
+        } catch (e: Exception) {
+        }
         if (!DriveSync.connected(app)) return Result.success()
 
         val r = try {

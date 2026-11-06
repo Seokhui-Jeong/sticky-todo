@@ -19,6 +19,7 @@ class MainActivity : BaseActivity() {
     private lateinit var list: RecyclerView
     private lateinit var emptyView: TextView
     private lateinit var countView: TextView
+    private lateinit var updateView: TextView
     private lateinit var adapter: TaskAdapter
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -28,6 +29,8 @@ class MainActivity : BaseActivity() {
         list = findViewById(R.id.list)
         emptyView = findViewById(R.id.empty)
         countView = findViewById(R.id.count)
+        updateView = findViewById(R.id.update)
+        updateView.setOnClickListener { startActivity(UpdateActivity.open(this)) }
 
         adapter = TaskAdapter(
             onToggle = { t ->
@@ -68,6 +71,7 @@ class MainActivity : BaseActivity() {
         emptyView.visibility = if (items.isEmpty()) View.VISIBLE else View.GONE
         val left = items.count { !it.done }
         countView.text = if (left > 0) left.toString() else ""
+        updateView.visibility = if (Updater.showBadge(this)) View.VISIBLE else View.GONE
         TodoWidget.refresh(this)
         SyncScheduler.soon(this)
     }
